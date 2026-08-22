@@ -44,7 +44,6 @@ export function maskUrl(url) {
 export function getProjectRef() {
   const projectUrl =
     process.env.SUPABASE_URL ||
-    process.env.VITE_SUPABASE_URL ||
     '';
   return (projectUrl.match(/https:\/\/([a-z0-9]{10,})\.supabase\.co/i) || [])[1] || null;
 }

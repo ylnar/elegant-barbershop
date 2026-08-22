@@ -83,7 +83,7 @@ export const LocationSection: React.FC<LocationSectionProps> = ({ settings }) =>
           <div className="lg:col-span-6">
             <div className="rounded-2xl overflow-hidden border border-stone-700/80 h-72 sm:h-84 relative shadow-2xl group bg-[#0A0A0E]">
               <img
-                src={storefrontImg}
+                src={storefrontImg.src}
                 alt="Tampak Depan Outlet Elegant Barbershop Solok Sumatera Barat"
                 loading="lazy"
                 decoding="async"

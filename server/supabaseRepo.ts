@@ -1,12 +1,12 @@
-import { getServerSupabase } from './supabase.ts';
+import { getServerSupabase } from './supabase';
 import {
   Booking,
   Service,
   Barber,
   SystemSettings,
   Transaction,
-} from '../src/types.ts';
-import { INITIAL_SETTINGS } from '../src/data/initialData.ts';
+} from '../src/types';
+import { INITIAL_SETTINGS } from '../src/data/initialData';
 
 export class SupabaseRepo {
   // --- Settings ---

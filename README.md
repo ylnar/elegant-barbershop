@@ -5,10 +5,10 @@
 
 [![React 19](https://img.shields.io/badge/React-19.0-61DAFB?logo=react&logoColor=black)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Vite](https://img.shields.io/badge/Vite-6.2-646CFF?logo=vite&logoColor=white)](https://vitejs.dev/)
+[![Next.js](https://img.shields.io/badge/Next.js-15-000000?logo=nextdotjs&logoColor=white)](https://nextjs.org/)
 [![TailwindCSS](https://img.shields.io/badge/TailwindCSS-v4.1-38B2AC?logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
-[![Node.js Express](https://img.shields.io/badge/Express-4.21-000000?logo=express&logoColor=white)](https://expressjs.com/)
-[![Google Gemini AI](https://img.shields.io/badge/Gemini_3.7_Flash-AI-8E75B2?logo=google&logoColor=white)](https://ai.google.dev/)
+[![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3FCF8E?logo=supabase&logoColor=white)](https://supabase.com/)
+[![Google Gemini AI](https://img.shields.io/badge/Gemini-AI-8E75B2?logo=google&logoColor=white)](https://ai.google.dev/)
 
 ---
 
@@ -57,35 +57,43 @@
 | Layer | Teknologi | Deskripsi |
 | :--- | :--- | :--- |
 | **Frontend** | React 19, TypeScript, Tailwind CSS v4, Motion, Lucide Icons | Antarmuka interaktif, responsif, dan berperforma tinggi. |
-| **Backend** | Node.js, Express 4, TypeScript, esbuild | Server REST API modular dengan sanitasi input & rate limiter. |
-| **AI Integration**| `@google/genai` (Gemini 3.7 Flash) | Rekomendasi model rambut terstruktur berbasis prompt engineering. |
-| **Build Tooling**| Vite 6, tsx, TypeScript Compiler | Kompilasi cepat dengan Hot Module Replacement & bundling produksi. |
+| **Fullstack** | Next.js 15 (App Router) | Landing page statis + REST API route handlers dalam satu framework. |
+| **Database** | Supabase PostgreSQL (`@supabase/supabase-js`) | Penyimpanan data transaksional dengan fallback in-memory. |
+| **AI Integration**| `@google/genai` (Gemini) | Rekomendasi model rambut terstruktur berbasis prompt engineering. |
+| **Build Tooling**| Next.js Compiler, TypeScript Compiler | Kompilasi produksi optimasi otomatis & type checking. |
 
 ---
 
 ## 📂 Struktur Direktori
 
 ```
-├── .github/workflows/ci.yml # CI validation workflow
-├── server/                  # Modul Backend API
-│   ├── middleware/          # Security headers, rate limiting, sanitasi input
-│   ├── routes/              # Modular Express routes (ai, barbers, bookings, etc.)
-│   └── state.ts             # Central in-memory state store
-├── src/                     # Source code Frontend React
-│   ├── assets/              # Gambar & aset visual resolusi tinggi
-│   ├── components/          # Komponen UI (Hero, Price List, AI, Admin, dll.)
-│   ├── data/                # Initial seeds & blueprints
-│   ├── hooks/               # Custom React hooks (useBarbershopData)
-│   ├── services/            # Service layer modular dengan LocalStorage fallback
-│   ├── types.ts             # Definisi TypeScript domain models
-│   ├── utils/               # Formatter rupiah, nomor HP, tanggal
-│   ├── App.tsx              # Root component
-│   └── main.tsx             # Entry point React
-├── ARCHITECTURE.md          # Dokumentasi teknis arsitektur sistem
-├── PRD.md                   # Product Requirements Document
-├── vercel.json              # Konfigurasi deployment Vercel
-├── server.ts                # Server runner & Vite middleware
-└── package.json             # Dependensi & NPM scripts
+├── .github/workflows/ci.yml   # CI validation workflow
+├── app/                       # Next.js App Router
+│   ├── layout.tsx             # Root layout (SEO, font, JSON-LD)
+│   ├── page.tsx               # Halaman utama (landing)
+│   └── api/                   # REST API route handlers
+│       ├── auth/              # Login & verifikasi sesi admin
+│       ├── barbers/           # CRUD barber
+│       ├── bookings/          # Reservasi + pelacakan tiket
+│       ├── services/          # CRUD layanan
+│       ├── transactions/      # Kasir POS
+│       ├── settings/          # Pengaturan & master switch
+│       └── ai-consultant/     # Rekomendasi AI Gemini
+├── server/                    # Logika domain bersama (state, Supabase, config)
+├── src/                       # Source code Frontend React
+│   ├── assets/                # Gambar & aset visual resolusi tinggi
+│   ├── components/            # Komponen UI (Hero, Price List, AI, Admin, dll.)
+│   ├── data/                  # Initial seeds & blueprints
+│   ├── hooks/                 # Custom React hooks (useBarbershopData)
+│   ├── services/              # Service layer modular dengan LocalStorage fallback
+│   ├── types.ts               # Definisi TypeScript domain models
+│   ├── utils/                 # Formatter rupiah, nomor HP, tanggal
+│   └── App.tsx                # Root component landing page
+├── ARCHITECTURE.md            # Dokumentasi teknis arsitektur sistem
+├── PRD.md                     # Product Requirements Document
+├── next.config.ts             # Konfigurasi Next.js
+├── vercel.json                # Header keamanan & cache Vercel
+└── package.json               # Dependensi & NPM scripts
 ```
 
 ---
@@ -133,8 +141,12 @@
 
 | Variable | Wajib/Opsional | Deskripsi |
 | :--- | :--- | :--- |
+| `SUPABASE_URL` | Wajib | URL project Supabase (`https://xxx.supabase.co`). |
+| `SUPABASE_ANON_KEY` | Wajib | Anon/public key Supabase. |
+| `SUPABASE_SERVICE_ROLE_KEY` | Wajib | Service role key — hanya untuk server, jangan pernah diekspos ke browser. |
+| `DATABASE_URL` | Opsional | Connection string PostgreSQL untuk tooling migrasi CLI. |
+| `DB_AUTO_MIGRATE` | Opsional | `true`/`false` — terapkan migrasi otomatis saat setup lokal. |
 | `GEMINI_API_KEY` | Opsional | Kunci API Google Gemini untuk fitur AI Barber Consultant. *(Jika tidak diisi, sistem otomatis menggunakan Master Barber Heuristic Fallback tanpa error).* |
-| `APP_URL` | Opsional | URL dasar tempat aplikasi dihosting. |
 
 ---
 
@@ -144,14 +156,14 @@
 Proyek ini sudah dilengkapi dengan konfigurasi `vercel.json`:
 1. Push repository ke GitHub.
 2. Buka [Vercel Dashboard](https://vercel.com/) dan import repository Anda.
-3. Framework Preset: **Vite**.
-4. Masukkan Environment Variables (`GEMINI_API_KEY`).
+3. Framework Preset terdeteksi otomatis: **Next.js**.
+4. Masukkan Environment Variables (`SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, opsional `GEMINI_API_KEY`).
 5. Klik **Deploy**.
 
 ### 2. Deploy ke Cloud Run / Docker / VPS
-Proyek dikonfigurasi untuk membangun server mandiri:
+Next.js dapat dijalankan sebagai server mandiri:
 1. Jalankan `npm run build`.
-2. Jalankan `npm start` (atau `node dist/server.cjs`). Server akan melayani backend API sekaligus file statis frontend pada port `3000`.
+2. Jalankan `npm start`. Server akan melayani halaman publik sekaligus REST API pada port `3000`.
 
 ---
 

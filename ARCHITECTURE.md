@@ -6,7 +6,7 @@
 
 ## 1. High-Level Architecture Overview
 
-Aplikasi dibangun dengan pola **Full-Stack Modular Architecture** yang menggabungkan antarmuka modern berbasis React 19 (Vite + Tailwind CSS) dan backend server Node.js Express yang menangani API routes, rate limiting, sanitasi data, serta integrasi server-side Google GenAI (Gemini 3.7 Flash).
+Aplikasi dibangun dengan pola **Full-Stack Modular Architecture** yang menggabungkan antarmuka modern berbasis React 19 (Next.js App Router + Tailwind CSS) dengan REST API route handlers bawaan Next.js yang menangani API routes, rate limiting, sanitasi data, serta integrasi server-side Google GenAI (Gemini).
 
 ```
 +-----------------------------------------------------------------------+
@@ -24,7 +24,7 @@ Aplikasi dibangun dengan pola **Full-Stack Modular Architecture** yang menggabun
                                          | HTTP / REST (Fetch API)
                                          v
 +-----------------------------------------------------------------------+
-|                         NODE.JS EXPRESS SERVER                        |
+|                         NEXT.JS ROUTE HANDLERS                        |
 |                                                                       |
 |  [ Security Headers ] -> [ Rate Limiter ] -> [ Input Sanitizer ]      |
 |                                                                       |
@@ -96,18 +96,23 @@ elegant-barbershop/
 │   ├── types.ts                 # TypeScript interfaces & domain models
 │   ├── utils/
 │   │   └── formatters.ts        # Currency (IDR), phone, date format utilities
-│   ├── App.tsx                  # Root application controller
-│   ├── index.css                # Tailwind CSS v4 entry point
-│   └── main.tsx                 # React DOM mount point
+│   ├── App.tsx                  # Root application controller (landing page)
+│   └── index.css                # Tailwind CSS v4 entry point
+├── app/                         # Next.js App Router
+│   ├── layout.tsx               # Root layout: SEO metadata, font, JSON-LD
+│   ├── page.tsx                 # Landing page entry (renders src/App.tsx)
+│   └── api/                     # REST API route handlers (auth, barbers, bookings,
+│                                #   services, transactions, settings, ai-consultant)
+├── server/                      # Shared domain logic (state store, Supabase client)
+├── lib/api.ts                   # Helper route handler (sanitasi, rate limit, JSON)
 ├── .env.example                 # Environment variables blueprint
 ├── ARCHITECTURE.md              # System Architecture Document
+├── next.config.ts               # Next.js configuration
 ├── package.json                 # Project dependencies & scripts
 ├── PRD.md                       # Product Requirements Document
 ├── README.md                    # Project overview & Developer Setup
-├── server.ts                    # Backend entry point (Express + Vite Middleware)
 ├── tsconfig.json                # TypeScript compiler configuration
-├── vercel.json                  # Vercel deployment configuration
-└── vite.config.ts               # Vite build pipeline configuration
+└── vercel.json                  # Vercel security headers & cache configuration
 ```
 
 ---
@@ -116,7 +121,7 @@ elegant-barbershop/
 
 ### 3.1 Dual-Tier Resilience Pattern
 Aplikasi menggunakan pola ketahanan ganda (*dual-tier persistence resilience*):
-1. **Primary Layer (Server REST API)**: Klien melakukan `fetch()` ke endpoint Express `/api/*`. Data tersinkronisasi di server state store.
+1. **Primary Layer (Server REST API)**: Klien melakukan `fetch()` ke endpoint `/api/*` (Next.js Route Handlers). Data tersinkronisasi di server state store.
 2. **Fallback Layer (Client Local Storage)**: Jika server sedang *cold-start*, offline, atau diakses di lingkungan serverless murni, `services/*` secara otomatis membaca dan menulis ke `localStorage` melalui `storage.ts`. Pengguna tidak akan pernah menemui layar blank atau error fatal.
 
 ### 3.2 AI Consultant Interaction Flow
@@ -129,7 +134,7 @@ Aplikasi menggunakan pola ketahanan ganda (*dual-tier persistence resilience*):
 
 ## 4. Security Design & Policies
 
-- **Server-Side API Key Protection**: Kunci `GEMINI_API_KEY` dikelola murni pada environment server (`process.env.GEMINI_API_KEY`) dan tidak pernah diinjeksi ke frontend bundle (`import.meta.env`).
+- **Server-Side API Key Protection**: Kunci `GEMINI_API_KEY` dikelola murni pada environment server (`process.env.GEMINI_API_KEY`) dan tidak pernah diinjeksi ke frontend bundle.
 - **Input Sanitization**: Seluruh string input pengguna pada nama, telepon, catatan, dan nama layanan disanitasi dari karakter tag HTML (`<`, `>`) untuk menolak upaya XSS.
 - **In-Memory Rate Limiting**: Endpoint publik seperti pembuatan reservasi dan konsultasi AI dilindungi dengan batas wajar (misal: 30 request/menit per IP) untuk mencegah DoS/bot spam.
 - **Security Headers**: Middleware otomatis menambahkan `X-Content-Type-Options: nosniff`, `X-XSS-Protection: 1; mode=block`, dan `Referrer-Policy: strict-origin-when-cross-origin`.
@@ -139,9 +144,9 @@ Aplikasi menggunakan pola ketahanan ganda (*dual-tier persistence resilience*):
 ## 5. Deployment Strategies
 
 ### 5.1 Docker / Cloud Run / VPS (Recommended for Full-Stack)
-- **Build**: `npm run build` (Menghasilkan frontend statis di `dist/` dan server terbundle di `dist/server.cjs` via `esbuild`).
-- **Start**: `node dist/server.cjs` (Menjalankan server pada port `3000`).
+- **Build**: `npm run build` (Menghasilkan build produksi Next.js di `.next/`).
+- **Start**: `npm start` (Menjalankan server pada port `3000`).
 
 ### 5.2 Vercel (Serverless / Static Deployment)
-- Konfigurasi `vercel.json` disediakan dengan route rewrites `/api/*` ke serverless function (`api/index.ts` via `serverless-http`), SPA fallback ke `index.html`, serta caching header untuk aset statis.
-- Environment variables (`GEMINI_API_KEY`, kredensial Supabase) dikonfigurasi melalui dashboard Vercel.
+- Framework terdeteksi otomatis sebagai **Next.js** — tidak perlu konfigurasi tambahan. `vercel.json` hanya menyediakan security headers & cache-control untuk aset statis.
+- Environment variables (`SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, opsional `GEMINI_API_KEY`) dikonfigurasi melalui dashboard Vercel.

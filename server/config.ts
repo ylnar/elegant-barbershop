@@ -92,10 +92,10 @@ export const serverConfig = {
 
 export const supabaseConfig = {
   /** Supabase project URL (https://xxx.supabase.co) */
-  url: env('SUPABASE_URL') || env('VITE_SUPABASE_URL'),
+  url: env('SUPABASE_URL'),
 
   /** Anon key (public, untuk client browser) */
-  anonKey: env('SUPABASE_ANON_KEY') || env('VITE_SUPABASE_ANON_KEY'),
+  anonKey: env('SUPABASE_ANON_KEY'),
 
   /** Service role key (server-side, full access) — HANYA di server */
   serviceRoleKey: env('SUPABASE_SERVICE_ROLE_KEY'),
@@ -133,7 +133,7 @@ export const supabaseConfig = {
   diagnose(): string[] {
     const issues: string[] = [];
     if (!this.url) {
-      issues.push('SUPABASE_URL / VITE_SUPABASE_URL tidak terbaca oleh Functions');
+      issues.push('SUPABASE_URL tidak terbaca oleh Functions');
     } else if (!this.url.startsWith('http')) {
       issues.push(`SUPABASE_URL tidak valid (harus diawali https://)`);
     }

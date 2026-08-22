@@ -1,6 +1,0 @@
-{
-  "name": "Elegant Barbershop Solok - Booking & Price List System",
-  "description": "Website resmi, katalog layanan & tarif, serta sistem kasir POS digital Elegant Barbershop Solok di Jl. Perwira Kota Solok, Sumatera Barat. Masuak Cayah Kalua Cogah.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}

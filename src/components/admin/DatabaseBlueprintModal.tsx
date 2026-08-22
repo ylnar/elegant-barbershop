@@ -594,7 +594,7 @@ END $$;
                   <ol className="text-xs text-stone-300 space-y-2 list-decimal list-inside leading-relaxed">
                     <li>Buka tab <strong>Skrip SQL DDL (Postgres)</strong> di atas dan klik <strong>Salin Skrip SQL</strong>.</li>
                     <li>Jalankan skrip tersebut di menu <strong>SQL Editor</strong> pada dashboard Supabase Anda.</li>
-                    <li>Pastikan variabel <code className="text-[#D4AF37] bg-stone-900 px-1 py-0.5 rounded font-mono">VITE_SUPABASE_URL</code> dan <code className="text-[#D4AF37] bg-stone-900 px-1 py-0.5 rounded font-mono">VITE_SUPABASE_ANON_KEY</code> diatur pada environment project.</li>
+                    <li>Pastikan variabel <code className="text-[#D4AF37] bg-stone-900 px-1 py-0.5 rounded font-mono">SUPABASE_URL</code>, <code className="text-[#D4AF37] bg-stone-900 px-1 py-0.5 rounded font-mono">SUPABASE_ANON_KEY</code>, dan <code className="text-[#D4AF37] bg-stone-900 px-1 py-0.5 rounded font-mono">SUPABASE_SERVICE_ROLE_KEY</code> diatur pada environment project.</li>
                   </ol>
                 </div>
               </div>

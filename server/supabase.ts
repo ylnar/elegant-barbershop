@@ -1,5 +1,5 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { supabaseConfig } from './config.ts';
+import { supabaseConfig } from './config';
 
 // ── Singleton Client ─────────────────────────────────────────────────────────
 

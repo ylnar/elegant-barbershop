@@ -100,13 +100,13 @@ Aplikasi ini dirancang untuk mengatasi inefisiensi pencatatan manual, memberikan
    - HTTP Security Headers (`X-Content-Type-Options`, `X-XSS-Protection`, `Referrer-Policy`).
    - Server-side proxy untuk Gemini API key agar tidak pernah terekspos ke browser.
 2. **Kinerja & Kecepatan (Performance)**:
-   - Waktu muat awal di bawah 1.5 detik dengan bundling Vite & Tailwind CSS.
+   - Waktu muat awal di bawah 1.5 detik dengan Next.js App Router & Tailwind CSS.
    - Client-side data caching dengan fallback `localStorage` sehingga UI tetap responsif saat koneksi lambat.
 3. **Desain & Responsivitas (UI/UX)**:
    - Palet warna mewah: Dark Charcoal/Onyx (`#0C0C12`, `#14141E`) berpadu dengan aksen Warm Gold (`#D4AF37`) dan teks kontras tinggi.
    - Desain responsif optimal untuk Smartphone (Mobile-First touch target minimal 44px), Tablet, dan Layar Desktop/Kasir.
 4. **Keandalan & Ketahanan (Reliability & Resilience)**:
-   - Dual-mode data architecture: Dapat beroperasi sebagai Full-Stack Express API maupun mode Client-Side Storage secara mulus.
+   - Dual-mode data architecture: Dapat beroperasi sebagai Full-Stack REST API (Next.js Route Handlers) maupun mode Client-Side Storage secara mulus.
 
 ---
 

@@ -23,7 +23,7 @@ export const Footer: React.FC<FooterProps> = ({
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-lg overflow-hidden border border-[#D4AF37]/50 flex-shrink-0 bg-black">
                 <img
-                  src={logoImg}
+                  src={logoImg.src}
                   alt="Logo Elegant Barbershop Solok"
                   width={40}
                   height={40}

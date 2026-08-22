@@ -4,15 +4,15 @@ import {
   INITIAL_BARBERS,
   INITIAL_BOOKINGS,
   INITIAL_TRANSACTIONS,
-} from '../src/data/initialData.ts';
+} from '../src/data/initialData';
 import {
   Booking,
   Service,
   Barber,
   SystemSettings,
   Transaction,
-} from '../src/types.ts';
-import { SupabaseRepo } from './supabaseRepo.ts';
+} from '../src/types';
+import { SupabaseRepo } from './supabaseRepo';
 
 class ServerStore {
   private settings: SystemSettings = { ...INITIAL_SETTINGS };

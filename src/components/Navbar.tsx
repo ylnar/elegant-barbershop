@@ -47,7 +47,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           >
             <div className="w-12 h-12 rounded-xl overflow-hidden border border-[#D4AF37]/50 shadow-lg bg-black flex-shrink-0 group-hover:border-[#D4AF37] transition-all">
               <img
-                src={logoImg}
+                src={logoImg.src}
                 alt="Logo Elegant Barbershop Solok"
                 width={48}
                 height={48}

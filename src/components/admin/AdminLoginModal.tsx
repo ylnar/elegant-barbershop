@@ -23,6 +23,7 @@ const MAX_RETRIES = 3;
  */
 export const getStoredSession = (): AdminUser | null => {
   try {
+    if (typeof window === 'undefined') return null;
     const raw = localStorage.getItem(SESSION_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
