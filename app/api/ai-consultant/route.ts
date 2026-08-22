@@ -81,7 +81,7 @@ const fallbackRecommendations: Record<string, AIConsultationResponse> = {
 
 // POST /api/ai-consultant
 export async function POST(req: Request) {
-  if (isRateLimited(req, 20, 60000)) {
+  if (isRateLimited(req, 20, 60000, 'ai')) {
     return tooManyRequests();
   }
 

@@ -36,17 +36,27 @@ export function sanitizeString(input: unknown): string {
 
 const buckets = new Map<string, { count: number; resetTime: number }>();
 
-export function isRateLimited(req: Request, maxRequests = 60, windowMs = 60000): boolean {
+/**
+ * Scope dipisah per endpoint agar kuota satu endpoint tidak
+ * menghabiskan kuota endpoint lain (mis. flood AI memblokir booking).
+ */
+export function isRateLimited(
+  req: Request,
+  maxRequests = 60,
+  windowMs = 60000,
+  scope = 'global',
+): boolean {
   const fwd = req.headers.get('x-forwarded-for') || '';
   const ip =
     fwd.split(',')[0]?.trim() ||
     req.headers.get('x-real-ip') ||
     'unknown';
+  const key = `${scope}:${ip}`;
   const now = Date.now();
 
-  const record = buckets.get(ip);
+  const record = buckets.get(key);
   if (!record || now > record.resetTime) {
-    buckets.set(ip, { count: 1, resetTime: now + windowMs });
+    buckets.set(key, { count: 1, resetTime: now + windowMs });
     // Cegah kebocoran memori pada instance berumur panjang
     if (buckets.size > 5000) buckets.clear();
     return false;
