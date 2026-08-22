@@ -9,9 +9,7 @@ import {
   LogOut,
   Menu,
   X,
-  Store,
   Clock,
-  ChevronRight,
   CreditCard,
   CalendarCheck,
 } from 'lucide-react';
@@ -340,51 +338,75 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
   };
 
-  const navItems = [
+  type TabId =
+    | 'transactions'
+    | 'bookings'
+    | 'switch'
+    | 'services'
+    | 'barbers'
+    | 'reports'
+    | 'guide';
+
+  const navGroups: { label: string; items: { id: TabId; label: string; icon: typeof CreditCard; badge?: string; badgeColor?: string }[] }[] = [
     {
-      id: 'transactions' as const,
-      label: 'Kasir & Transaksi POS',
-      icon: CreditCard,
-      badge: transactions.length > 0 ? `${transactions.length}` : undefined,
-      badgeColor: 'bg-[#D4AF37]/20 text-[#D4AF37]',
+      label: 'Operasional Harian',
+      items: [
+        {
+          id: 'transactions',
+          label: 'Kasir & Transaksi',
+          icon: CreditCard,
+          badge: transactions.length > 0 ? `${transactions.length}` : undefined,
+          badgeColor: 'bg-[#D4AF37]/20 text-[#D4AF37]',
+        },
+        {
+          id: 'bookings',
+          label: 'Reservasi Booking',
+          icon: CalendarCheck,
+          badge: `${bookings.filter((b) => b.status !== 'completed' && b.status !== 'cancelled').length}`,
+          badgeColor: 'bg-sky-500/20 text-sky-300',
+        },
+        {
+          id: 'switch',
+          label: 'Status Buka & Antrean',
+          icon: Radio,
+          badge: settings.isBookingOpen ? 'Buka' : 'Tutup',
+          badgeColor: settings.isBookingOpen ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400',
+        },
+      ],
     },
     {
-      id: 'bookings' as const,
-      label: 'Reservasi Booking',
-      icon: CalendarCheck,
-      badge: `${bookings.filter((b) => b.status !== 'completed' && b.status !== 'cancelled').length}`,
-      badgeColor: 'bg-sky-500/20 text-sky-300',
+      label: 'Pengelolaan Data',
+      items: [
+        {
+          id: 'services',
+          label: 'Layanan & Harga',
+          icon: Scissors,
+          badge: `${services.length}`,
+          badgeColor: 'bg-stone-800 text-stone-300',
+        },
+        {
+          id: 'barbers',
+          label: 'Data Barber',
+          icon: Users,
+          badge: `${barbers.length}`,
+          badgeColor: 'bg-stone-800 text-stone-300',
+        },
+      ],
     },
     {
-      id: 'switch' as const,
-      label: 'Status Buka & Antrean',
-      icon: Radio,
-      badge: settings.isBookingOpen ? 'Buka' : 'Tutup',
-      badgeColor: settings.isBookingOpen ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400',
-    },
-    {
-      id: 'services' as const,
-      label: 'Layanan & Harga',
-      icon: Scissors,
-      badge: `${services.length}`,
-      badgeColor: 'bg-stone-800 text-stone-300',
-    },
-    {
-      id: 'barbers' as const,
-      label: 'Data Barber',
-      icon: Users,
-      badge: `${barbers.length}`,
-      badgeColor: 'bg-stone-800 text-stone-300',
-    },
-    {
-      id: 'reports' as const,
-      label: 'Laporan Keuangan',
-      icon: TrendingUp,
-    },
-    {
-      id: 'guide' as const,
-      label: 'Petunjuk & Panduan',
-      icon: BookOpen,
+      label: 'Laporan & Info',
+      items: [
+        {
+          id: 'reports',
+          label: 'Laporan Keuangan',
+          icon: TrendingUp,
+        },
+        {
+          id: 'guide',
+          label: 'Petunjuk & Panduan',
+          icon: BookOpen,
+        },
+      ],
     },
   ];
 
@@ -444,49 +466,51 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         </div>
 
         {/* Sidebar Navigation */}
-        <nav className="flex-1 px-3 py-4 space-y-1.5 overflow-y-auto">
-          <span className="px-3 text-[10px] font-bold text-stone-500 uppercase tracking-widest block mb-2">
-            Menu Operasional
-          </span>
-
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = activeTab === item.id;
-            return (
-              <button
-                key={item.id}
-                onClick={() => {
-                  setActiveTab(item.id);
-                  setSidebarOpen(false);
-                }}
-                className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs font-semibold tracking-wide transition-all cursor-pointer group ${
-                  isActive
-                    ? 'bg-[#D4AF37] text-stone-950 shadow-md shadow-[#D4AF37]/20 font-bold'
-                    : 'text-stone-300 hover:bg-[#181824] hover:text-white'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <Icon className={`w-4 h-4 transition-colors ${isActive ? 'text-stone-950' : 'text-[#D4AF37] group-hover:text-white'}`} />
-                  <span>{item.label}</span>
-                </div>
-
-                <div className="flex items-center gap-1.5">
-                  {item.badge && (
-                    <span
-                      className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+        <nav className="flex-1 px-3 py-4 space-y-4 overflow-y-auto">
+          {navGroups.map((group) => (
+            <div key={group.label}>
+              <span className="px-3 text-[10px] font-bold text-stone-500 uppercase tracking-widest block mb-1.5">
+                {group.label}
+              </span>
+              <div className="space-y-1">
+                {group.items.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = activeTab === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => {
+                        setActiveTab(item.id);
+                        setSidebarOpen(false);
+                      }}
+                      className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold tracking-wide transition-all cursor-pointer group ${
                         isActive
-                          ? 'bg-stone-950/20 text-stone-950'
-                          : item.badgeColor || 'bg-stone-800 text-stone-300'
+                          ? 'bg-[#D4AF37] text-stone-950 shadow-md shadow-[#D4AF37]/20 font-bold'
+                          : 'text-stone-300 hover:bg-[#181824] hover:text-white'
                       }`}
                     >
-                      {item.badge}
-                    </span>
-                  )}
-                  {isActive && <ChevronRight className="w-3.5 h-3.5 text-stone-950" />}
-                </div>
-              </button>
-            );
-          })}
+                      <div className="flex items-center gap-3">
+                        <Icon className={`w-4 h-4 transition-colors ${isActive ? 'text-stone-950' : 'text-[#D4AF37] group-hover:text-white'}`} />
+                        <span>{item.label}</span>
+                      </div>
+
+                      {item.badge && (
+                        <span
+                          className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                            isActive
+                              ? 'bg-stone-950/20 text-stone-950'
+                              : item.badgeColor || 'bg-stone-800 text-stone-300'
+                          }`}
+                        >
+                          {item.badge}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </nav>
 
         {/* Aside Footer */}
@@ -521,21 +545,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
             <div>
               <h2 className="text-base font-bold text-white font-serif tracking-wide">
-                {navItems.find((n) => n.id === activeTab)?.label}
+                {navGroups.flatMap((g) => g.items).find((n) => n.id === activeTab)?.label}
               </h2>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            {/* View Website */}
-            <button
-              onClick={onClose}
-              className="hidden sm:flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#141420] hover:bg-[#1E1E2E] border border-stone-800 text-xs font-semibold text-stone-300 transition-colors cursor-pointer"
-            >
-              <Store className="w-3.5 h-3.5 text-[#D4AF37]" />
-              <span>Lihat Web Pengunjung</span>
-            </button>
-
+          <div className="flex items-center gap-2 sm:gap-3">
             {currentUser && (
               <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#1A1A26] border border-stone-800">
                 <div className="w-6 h-6 rounded-full bg-[#D4AF37]/20 flex items-center justify-center">
@@ -555,7 +570,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-semibold transition-colors cursor-pointer"
             >
               <LogOut className="w-3.5 h-3.5" />
-              <span>Keluar</span>
+              <span>Tutup Panel</span>
             </button>
           </div>
         </header>

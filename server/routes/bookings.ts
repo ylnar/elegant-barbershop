@@ -6,6 +6,62 @@ import { getServerSupabase } from '../supabase.ts';
 
 export const bookingsRouter = Router();
 
+/** Normalisasi nomor WA untuk perbandingan: angka saja, awalan 0 -> 62 */
+function normalizePhone(phone: string): string {
+  const digits = String(phone || '').replace(/[^0-9]/g, '');
+  return digits.startsWith('0') ? `62${digits.slice(1)}` : digits;
+}
+
+/** Status reservasi yang masih menghitung sebagai "aktif" */
+const ACTIVE_BOOKING_STATUSES = ['pending', 'confirmed', 'in_service'];
+
+/**
+ * Cek apakah nomor WhatsApp sudah memiliki reservasi aktif yang belum terlewat.
+ * Aturan: 1 nomor = 1 reservasi aktif. Setelah tanggal reservasi terlewat
+ * (date < hari ini), nomor tersebut boleh membuat reservasi baru.
+ */
+async function findActiveBookingByPhone(
+  phone: string,
+  todayStr: string,
+): Promise<{ code: string; date: string } | null> {
+  const normalized = normalizePhone(phone);
+  const supabase = getServerSupabase();
+
+  if (supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('bookings')
+        .select('id, booking_code, customer_phone, date, time_slot')
+        .eq('is_deleted', false)
+        .in('status', ACTIVE_BOOKING_STATUSES)
+        .gte('date', todayStr)
+        .order('created_at', { ascending: false })
+        .limit(200);
+
+      if (!error && data) {
+        const found = data.find((b: any) => normalizePhone(b.customer_phone) === normalized);
+        if (found) {
+          return { code: String(found.booking_code || ''), date: String(found.date || '') };
+        }
+        return null;
+      }
+    } catch (err) {
+      console.warn('[Bookings Route] Duplikat phone check error:', err);
+    }
+  }
+
+  // Fallback in-memory store
+  const memFound = serverStore
+    .getBookings()
+    .find(
+      (b) =>
+        normalizePhone(b.customerPhone) === normalized &&
+        ACTIVE_BOOKING_STATUSES.includes(b.status) &&
+        b.date >= todayStr,
+    );
+  return memFound ? { code: memFound.bookingCode, date: memFound.date } : null;
+}
+
 // GET /api/bookings
 bookingsRouter.get('/', async (req, res) => {
   const { date, status, search, code } = req.query;
@@ -127,6 +183,21 @@ bookingsRouter.post('/', rateLimiter(30, 60000), async (req, res) => {
     return res.status(400).json({
       error: 'Tidak dapat membuat booking untuk tanggal yang sudah lewat.',
     });
+  }
+
+  // Validate: 1 nomor WhatsApp hanya boleh 1 reservasi aktif (belum lewat 1 hari).
+  // Walk-in & pencatatan manual admin tidak diblokir karena bersifat instan/internal.
+  if (!isManualWalkIn && !isAdminEntry) {
+    try {
+      const existing = await findActiveBookingByPhone(customerPhone, todayStr);
+      if (existing) {
+        return res.status(409).json({
+          error: `Nomor WhatsApp ini sudah memiliki reservasi aktif dengan kode ${existing.code} pada ${existing.date}. Satu nomor hanya boleh satu reservasi aktif. Setelah hari reservasi terlewat, Anda bisa memesan lagi.`,
+        });
+      }
+    } catch (err) {
+      console.warn('[Bookings Route] Gagal cek duplikat nomor:', err);
+    }
   }
 
   const service = serverStore.getServiceById(serviceId);

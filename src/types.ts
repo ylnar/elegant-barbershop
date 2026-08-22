@@ -9,7 +9,6 @@ export interface Service {
   description: string;
   badge?: string;
   isActive: boolean;
-  imageUrl?: string;
 }
 
 export interface Barber {

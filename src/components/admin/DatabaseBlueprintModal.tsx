@@ -90,7 +90,6 @@ CREATE TABLE IF NOT EXISTS public.services (
     duration_minutes INTEGER DEFAULT 35 NOT NULL CHECK (duration_minutes > 0),
     description TEXT,
     badge VARCHAR(50),
-    image_url TEXT,
     is_active BOOLEAN DEFAULT TRUE NOT NULL,
     display_order INTEGER DEFAULT 0 NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,

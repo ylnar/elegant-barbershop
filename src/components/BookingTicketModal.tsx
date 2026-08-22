@@ -13,7 +13,7 @@ import {
   QrCode,
 } from 'lucide-react';
 import { Booking, SystemSettings } from '../types';
-import { formatIDR, formatDateIndonesian, generateWhatsAppLink } from '../utils/formatters';
+import { formatIDR, formatDateIndonesian, generateBookingConfirmationLink } from '../utils/formatters';
 
 interface BookingTicketModalProps {
   booking: Booking | null;
@@ -28,16 +28,15 @@ export const BookingTicketModal: React.FC<BookingTicketModalProps> = ({
 }) => {
   if (!booking) return null;
 
-  const waLink = generateWhatsAppLink(
-    booking.customerPhone,
+  const waLink = generateBookingConfirmationLink(
+    settings.phone,
     booking.customerName,
     booking.bookingCode,
     booking.serviceName,
     booking.barberName,
     booking.date,
     booking.timeSlot,
-    booking.totalAmount,
-    booking.status
+    booking.totalAmount
   );
 
   return (
@@ -151,8 +150,11 @@ export const BookingTicketModal: React.FC<BookingTicketModalProps> = ({
               className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-[#25D366] hover:bg-[#20ba59] text-stone-950 font-bold text-xs uppercase tracking-wider transition-all shadow-lg"
             >
               <MessageCircle className="w-4 h-4 fill-stone-950" />
-              <span>Simpan & Buka Rincian di WhatsApp</span>
+              <span>Kirim Konfirmasi Booking via WhatsApp</span>
             </a>
+            <p className="text-center text-[10px] text-stone-500">
+              Chat akan terbuka ke admin outlet dengan format pesan yang sudah terisi otomatis.
+            </p>
 
             <button
               onClick={onClose}

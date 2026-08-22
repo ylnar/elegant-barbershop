@@ -452,7 +452,6 @@ export const DATABASE_SCHEMA_BLUEPRINT: SchemaTable[] = [
       { name: 'duration_minutes', type: 'INTEGER', nullable: false, defaultVal: '35', description: 'Durasi pengerjaan dalam menit' },
       { name: 'description', type: 'TEXT', nullable: true, description: 'Rincian fasilitas dan layanan' },
       { name: 'badge', type: 'VARCHAR(50)', nullable: true, description: 'Label promosi' },
-      { name: 'image_url', type: 'TEXT', nullable: true, description: 'URL foto layanan' },
       { name: 'is_active', type: 'BOOLEAN', nullable: false, defaultVal: 'true', description: 'Status tampil di form booking' },
       { name: 'created_at', type: 'TIMESTAMP WITH TIME ZONE', nullable: false, defaultVal: 'NOW()', description: 'Waktu pencatatan' },
     ],

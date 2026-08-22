@@ -26,7 +26,6 @@ servicesRouter.get('/', async (_req, res) => {
           durationMinutes: Number(s.duration_minutes ?? s.durationMinutes ?? 35),
           description: s.description || '',
           badge: s.badge || undefined,
-          imageUrl: s.image_url || undefined,
           isActive: s.is_active !== undefined ? Boolean(s.is_active) : true,
         }));
         serverStore.setServices(mapped);
@@ -61,7 +60,6 @@ servicesRouter.post('/', async (req, res) => {
     description: sanitizeString(req.body.description || ''),
     badge: req.body.badge ? sanitizeString(req.body.badge) : undefined,
     isActive: req.body.isActive !== false,
-    imageUrl: req.body.imageUrl || undefined,
   };
 
   // Try Supabase first, fall back to in-memory
@@ -76,7 +74,6 @@ servicesRouter.post('/', async (req, res) => {
         duration_minutes: newService.durationMinutes,
         description: newService.description,
         badge: newService.badge || null,
-        image_url: newService.imageUrl || null,
         is_active: newService.isActive,
       });
       if (!error) {
@@ -132,7 +129,6 @@ servicesRouter.put('/:id', async (req, res) => {
       if (updates.durationMinutes !== undefined) payload.duration_minutes = updates.durationMinutes;
       if (updates.description !== undefined) payload.description = updates.description;
       if (updates.badge !== undefined) payload.badge = updates.badge;
-      if (updates.imageUrl !== undefined) payload.image_url = updates.imageUrl;
       if (updates.isActive !== undefined) payload.is_active = updates.isActive;
 
       const { error } = await supabase.from('services').update(payload).eq('id', id);

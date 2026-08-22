@@ -33,6 +33,15 @@ interface BookingSectionProps {
   onTrackTicket?: (booking: Booking) => void;
 }
 
+/** Status reservasi yang masih dianggap aktif */
+const ACTIVE_BOOKING_STATUSES: Booking['status'][] = ['pending', 'confirmed', 'in_service'];
+
+/** Normalisasi nomor WA lokal untuk deteksi duplikat (08xx -> 628xx) */
+function normalizePhoneLocal(phone: string): string {
+  const digits = phone.replace(/[^0-9]/g, '');
+  return digits.startsWith('0') ? `62${digits.slice(1)}` : digits;
+}
+
 export const BookingSection: React.FC<BookingSectionProps> = ({
   settings,
   services,
@@ -87,6 +96,17 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
   // UI status
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [formError, setFormError] = useState<string | null>(null);
+
+  // Deteksi nomor WhatsApp yang masih memiliki reservasi aktif (belum terlewat).
+  // Aturan: 1 nomor = 1 reservasi aktif; setelah hari reservasi terlewat boleh pesan lagi.
+  const duplicatePhoneBooking = customerPhone
+    ? bookings.find(
+        (b) =>
+          normalizePhoneLocal(b.customerPhone) === normalizePhoneLocal(customerPhone) &&
+          ACTIVE_BOOKING_STATUSES.includes(b.status) &&
+          b.date >= todayStr,
+      )
+    : undefined;
 
   // Tracking Ticket State
   const [searchCodeOrPhone, setSearchCodeOrPhone] = useState<string>('');
@@ -153,6 +173,14 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
 
     if (!customerPhone.trim() || !isValidWhatsAppNumber(customerPhone)) {
       setFormError('Nomor WhatsApp tidak valid. Gunakan format 08xx atau 628xx (10-13 digit), contoh: 081234567890.');
+      return;
+    }
+
+    if (duplicatePhoneBooking) {
+      setFormError(
+        `Nomor WhatsApp ini sudah memiliki reservasi aktif (kode ${duplicatePhoneBooking.bookingCode} • ${formatDateIndonesian(duplicatePhoneBooking.date)}). ` +
+          'Satu nomor hanya boleh satu reservasi aktif. Setelah hari reservasi terlewat, Anda bisa memesan lagi.',
+      );
       return;
     }
 
@@ -391,21 +419,15 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                                 </div>
                               )}
 
-                              <div>
-                                <div className="flex items-center gap-2 pr-6">
-                                  <h4 className="text-sm sm:text-base font-bold text-white font-serif group-hover:text-[#D4AF37] transition-colors">
-                                    {service.name}
-                                  </h4>
-                                </div>
-                                <p className="text-xs text-stone-400 mt-1 line-clamp-2 leading-relaxed">
-                                  {service.description || 'Layanan pangkas rambut presisi oleh master barber.'}
-                                </p>
+                              <div className="flex items-center gap-2 pr-6">
+                                <h4 className="text-sm sm:text-base font-bold text-white font-serif group-hover:text-[#D4AF37] transition-colors">
+                                  {service.name}
+                                </h4>
                               </div>
 
                               <div className="flex items-center justify-between pt-3 mt-3 border-t border-stone-800/60">
-                                <span className="text-[11px] text-stone-400 flex items-center gap-1">
-                                  <Clock className="w-3 h-3 text-[#D4AF37]" />
-                                  <span>{service.durationMinutes} Menit</span>
+                                <span className="text-[10px] text-stone-500 uppercase tracking-wider">
+                                  {isSelected ? 'Dipilih' : 'Tersedia'}
                                 </span>
                                 <span className="text-sm font-bold text-[#D4AF37] font-serif">
                                   {formatIDR(service.price)}
@@ -653,7 +675,7 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                               value={customerPhone}
                               onChange={(e) => setCustomerPhone(sanitizePhoneInput(e.target.value))}
                               className={`w-full pl-10 pr-4 py-3 rounded-xl bg-[#0E0E14] border text-stone-100 text-xs sm:text-sm focus:outline-none transition-all placeholder:text-stone-600 ${
-                                customerPhone && !isValidWhatsAppNumber(customerPhone)
+                                customerPhone && (!isValidWhatsAppNumber(customerPhone) || duplicatePhoneBooking)
                                   ? 'border-rose-500/60 focus:border-rose-500'
                                   : 'border-stone-800 focus:border-[#D4AF37]'
                               }`}
@@ -663,9 +685,18 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                             <span className="text-[10px] text-rose-400 block">
                               Nomor belum valid. Format: 08xx / 628xx (10-13 digit).
                             </span>
+                          ) : duplicatePhoneBooking ? (
+                            <span className="text-[10px] text-amber-400 block flex items-start gap-1">
+                              <AlertCircle className="w-3 h-3 shrink-0 mt-px" />
+                              <span>
+                                Nomor ini sudah punya reservasi aktif ({duplicatePhoneBooking.bookingCode} •{' '}
+                                {formatDateIndonesian(duplicatePhoneBooking.date)}). Satu nomor hanya boleh satu
+                                reservasi aktif.
+                              </span>
+                            </span>
                           ) : (
                             <span className="text-[10px] text-stone-500 block">
-                              Tiket digital &amp; info konfirmasi dikirim ke nomor ini.
+                              Tiket digital &amp; info konfirmasi dikirim ke nomor ini. 1 nomor = 1 reservasi aktif.
                             </span>
                           )}
                         </div>
@@ -698,13 +729,6 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                           <span className="text-stone-400">Layanan:</span>
                           <span className="font-bold text-white text-right font-serif max-w-[160px]">
                             {currentService?.name || 'Pangkas Rambut'}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center justify-between">
-                          <span className="text-stone-400">Estimasi Durasi:</span>
-                          <span className="text-stone-200 font-medium">
-                            {currentService?.durationMinutes || 35} Menit
                           </span>
                         </div>
 

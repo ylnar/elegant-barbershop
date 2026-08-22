@@ -82,16 +82,9 @@ export const ServicesSection: React.FC<ServicesSectionProps> = ({
                 >
                   <div className="flex items-baseline gap-2.5 sm:gap-3 pr-2">
                     <span className="text-[#D4AF37] text-sm leading-none group-hover:scale-125 transition-transform">•</span>
-                    <div>
-                      <span className="text-base sm:text-lg font-serif text-stone-100 group-hover:text-[#D4AF37] font-medium transition-colors block">
-                        {service.name}
-                      </span>
-                      {service.durationMinutes && (
-                        <span className="text-[11px] text-stone-500 block">
-                          Durasi: ~{service.durationMinutes} menit
-                        </span>
-                      )}
-                    </div>
+                    <span className="text-base sm:text-lg font-serif text-stone-100 group-hover:text-[#D4AF37] font-medium transition-colors block">
+                      {service.name}
+                    </span>
                   </div>
 
                   <div className="flex items-center gap-3 shrink-0 pl-3">

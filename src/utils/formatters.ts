@@ -67,34 +67,40 @@ export function getStatusBadge(status: string): { label: string; bg: string; tex
   }
 }
 
-export function generateWhatsAppLink(
-  phone: string,
+/** Normalisasi nomor Indonesia ke format internasional (08xx -> 628xx) */
+export function normalizePhoneForWa(phone: string): string {
+  const digits = phone.replace(/[^0-9]/g, '');
+  if (digits.startsWith('62')) return digits;
+  if (digits.startsWith('0')) return `62${digits.slice(1)}`;
+  return digits;
+}
+
+/**
+ * Generate link WhatsApp KONFIRMASI BOOKING dari sisi pelanggan ke admin outlet.
+ * Pesan ditulis dari sudut pandang pelanggan yang menyampaikan tiket reservasinya.
+ */
+export function generateBookingConfirmationLink(
+  shopPhone: string,
   customerName: string,
   bookingCode: string,
   serviceName: string,
   barberName: string,
   date: string,
   timeSlot: string,
-  totalPrice: number,
-  status: string
+  totalPrice: number
 ): string {
-  const cleanPhone = phone.replace(/[^0-9]/g, '').replace(/^0/, '62');
-  
-  let message = `Halo Kak *${customerName}*,\n\n`;
-  message += `Terima kasih telah melakukan reservasi di *Elegant Barbershop Solok* ("Masuak Cayah Kalua Cogah").\n\n`;
-  message += `Berikut adalah rincian reservasi Anda:\n`;
+  let message = `Halo min, saya mau booking 🙏\n\n`;
+  message += `Saya sudah membuat tiket reservasi dengan rincian berikut:\n\n`;
   message += `🔖 *Kode Reservasi:* ${bookingCode}\n`;
+  message += `👤 *Nama:* ${customerName}\n`;
   message += `✂️ *Layanan:* ${serviceName}\n`;
   message += `💈 *Master Barber:* ${barberName}\n`;
-  message += `📅 *Hari/Tanggal:* ${formatDateIndonesian(date)}\n`;
-  message += `⏰ *Waktu:* ${timeSlot} WIB\n`;
-  message += `💵 *Total Biaya:* ${formatIDR(totalPrice)}\n`;
-  message += `📌 *Status:* ${status === 'confirmed' ? 'TERKONFIRMASI ✅' : status.toUpperCase()}\n\n`;
-  message += `📍 *Lokasi:* Jl. Perwira, VI Suku, Kota Solok, Sumatera Barat\n`;
-  message += `_Silakan hadir 5-10 menit sebelum jadwal. Tunjukkan kode reservasi ini kepada kasir/barber kami._\n\n`;
-  message += `Ada kendala atau ingin ubah jam? Silakan balas pesan ini. Sampai jumpa di outlet! 💈✨`;
+  message += `📅 *Jadwal:* ${formatDateIndonesian(date)}\n`;
+  message += `⏰ *Jam Datang:* ${timeSlot} WIB\n`;
+  message += `💵 *Total Biaya:* ${formatIDR(totalPrice)}\n\n`;
+  message += `Mohon dikonfirmasi ya min, terima kasih! 💈`;
 
-  return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
+  return `https://wa.me/${normalizePhoneForWa(shopPhone)}?text=${encodeURIComponent(message)}`;
 }
 
 /**

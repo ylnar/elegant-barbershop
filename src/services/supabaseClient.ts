@@ -209,7 +209,6 @@ function mapService(s: any): Service {
     durationMinutes: Number(s.duration_minutes ?? s.durationMinutes ?? s.durasi ?? 35),
     description: s.description || s.deskripsi || '',
     badge: s.badge || undefined,
-    imageUrl: s.image_url || s.imageUrl || s.foto || undefined,
     isActive: s.is_active !== undefined ? Boolean(s.is_active) : (s.isActive !== undefined ? Boolean(s.isActive) : true),
   };
 }

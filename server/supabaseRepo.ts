@@ -88,7 +88,6 @@ export class SupabaseRepo {
         durationMinutes: Number(s.duration_minutes ?? s.durationMinutes ?? s.durasi ?? 35),
         description: s.description || s.deskripsi || '',
         badge: s.badge || undefined,
-        imageUrl: s.image_url || s.imageUrl || s.foto || undefined,
         isActive: s.is_active !== undefined ? Boolean(s.is_active) : (s.isActive !== undefined ? Boolean(s.isActive) : true),
       }));
     } catch {
@@ -108,7 +107,6 @@ export class SupabaseRepo {
         duration_minutes: service.durationMinutes,
         description: service.description,
         badge: service.badge || null,
-        image_url: service.imageUrl || null,
         is_active: service.isActive,
       });
       return !error;
@@ -129,7 +127,6 @@ export class SupabaseRepo {
       if (updates.durationMinutes !== undefined) payload.duration_minutes = updates.durationMinutes;
       if (updates.description !== undefined) payload.description = updates.description;
       if (updates.badge !== undefined) payload.badge = updates.badge;
-      if (updates.imageUrl !== undefined) payload.image_url = updates.imageUrl;
       if (updates.isActive !== undefined) payload.is_active = updates.isActive;
 
       const { error } = await client.from('services').update(payload).eq('id', id);
