@@ -182,7 +182,7 @@ export const fetchBarbersLive = async (): Promise<Barber[] | null> => {
       .select('*')
       .eq('is_deleted', false);
 
-    if (error || !data || data.length === 0) return null;
+    if (error || !data) return null;
     return data.map(mapBarber);
   } catch {
     return null;
@@ -199,7 +199,7 @@ export const fetchServicesLive = async (): Promise<Service[] | null> => {
       .select('*')
       .eq('is_deleted', false);
 
-    if (error || !data || data.length === 0) return null;
+    if (error || !data) return null;
     return data.map(mapService);
   } catch {
     return null;
@@ -217,7 +217,7 @@ export const fetchBookingsLive = async (): Promise<Booking[] | null> => {
       .eq('is_deleted', false)
       .order('created_at', { ascending: false });
 
-    if (error || !data || data.length === 0) return null;
+    if (error || !data) return null;
     return data.map(mapBooking);
   } catch {
     return null;
@@ -235,7 +235,7 @@ export const fetchTransactionsLive = async (): Promise<Transaction[] | null> => 
       .eq('is_deleted', false)
       .order('created_at', { ascending: false });
 
-    if (error || !data || data.length === 0) return null;
+    if (error || !data) return null;
     return data.map(mapTransaction);
   } catch {
     return null;

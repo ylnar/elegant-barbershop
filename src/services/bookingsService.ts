@@ -14,7 +14,7 @@ export const bookingsService = {
     // 1. Direct Supabase client
     try {
       const liveBookings = await fetchBookingsLive();
-      if (liveBookings && liveBookings.length > 0) {
+      if (liveBookings !== null) {
         setLocal(STORAGE_KEYS.BOOKINGS, liveBookings);
         let list = liveBookings;
         if (filters?.code) {
@@ -137,7 +137,11 @@ export const bookingsService = {
       }
     }
 
-    // Local-only fallback for non-UUID IDs
+    if (getSupabaseClient()) {
+      throw new Error('Booking gagal diperbarui di Supabase.');
+    }
+
+    // Local-only fallback when Supabase is not configured
     const bookings = getLocal<Booking[]>(STORAGE_KEYS.BOOKINGS, INITIAL_BOOKINGS);
     const idx = bookings.findIndex((b) => b.id === id);
     if (idx !== -1) {
@@ -154,9 +158,13 @@ export const bookingsService = {
       try {
         await dbDeleteBooking(id);
       } catch (e: any) {
-        console.warn('[Supabase Delete Booking]:', e.message);
-        // Continue to remove from local cache even if Supabase fails
+        console.error('[Supabase Delete Booking]:', e.message);
+        throw e;
       }
+    }
+
+    if (getSupabaseClient()) {
+      throw new Error('Booking tidak memiliki ID Supabase yang valid.');
     }
 
     // Always sync local cache

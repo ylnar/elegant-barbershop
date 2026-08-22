@@ -9,7 +9,7 @@ export const transactionsService = {
     // 1. Direct Supabase client
     try {
       const liveTransactions = await fetchTransactionsLive();
-      if (liveTransactions && liveTransactions.length > 0) {
+      if (liveTransactions !== null) {
         setLocal(STORAGE_KEYS.TRANSACTIONS, liveTransactions);
         let list = liveTransactions;
         if (filters?.date) {
@@ -116,8 +116,13 @@ export const transactionsService = {
       try {
         await dbDeleteTransaction(id);
       } catch (e: any) {
-        console.warn('[Supabase Delete Transaction]:', e.message);
+        console.error('[Supabase Delete Transaction]:', e.message);
+        throw e;
       }
+    }
+
+    if (getSupabaseClient()) {
+      throw new Error('Transaksi tidak memiliki ID Supabase yang valid.');
     }
 
     // Always sync local cache

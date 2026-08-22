@@ -1,14 +1,14 @@
 import { Service } from '../types';
 import { INITIAL_SERVICES } from '../data/initialData';
 import { STORAGE_KEYS, getLocal, setLocal } from './storage';
-import { fetchServicesLive, dbCreateService, dbUpdateService, dbDeleteService } from './supabaseClient';
+import { fetchServicesLive, dbCreateService, dbUpdateService, dbDeleteService, getSupabaseClient } from './supabaseClient';
 
 export const servicesService = {
   async getServices(): Promise<Service[]> {
     // 1. Direct Supabase client
     try {
       const liveServices = await fetchServicesLive();
-      if (liveServices && liveServices.length > 0) {
+      if (liveServices !== null) {
         setLocal(STORAGE_KEYS.SERVICES, liveServices);
         return liveServices;
       }
@@ -16,6 +16,7 @@ export const servicesService = {
       // Fall through to local cache
     }
 
+    if (getSupabaseClient()) throw new Error('Gagal membaca layanan dari Supabase.');
     return getLocal<Service[]>(STORAGE_KEYS.SERVICES, INITIAL_SERVICES);
   },
 

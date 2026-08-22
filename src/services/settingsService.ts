@@ -1,7 +1,7 @@
 import { SystemSettings } from '../types';
 import { INITIAL_SETTINGS } from '../data/initialData';
 import { STORAGE_KEYS, getLocal, setLocal } from './storage';
-import { dbGetSettings, dbUpdateSettings } from './supabaseClient';
+import { dbGetSettings, dbUpdateSettings, isSupabaseConfigured } from './supabaseClient';
 
 export const settingsService = {
   async getSettings(): Promise<SystemSettings> {
@@ -12,8 +12,11 @@ export const settingsService = {
         setLocal(STORAGE_KEYS.SETTINGS, liveSettings);
         return liveSettings;
       }
+      if (isSupabaseConfigured()) {
+        throw new Error('Pengaturan tidak dapat dibaca dari Supabase.');
+      }
     } catch {
-      // Fall through to local cache
+      if (isSupabaseConfigured()) throw new Error('Gagal membaca pengaturan dari Supabase.');
     }
 
     return getLocal<SystemSettings>(STORAGE_KEYS.SETTINGS, INITIAL_SETTINGS);
@@ -27,7 +30,8 @@ export const settingsService = {
         return updated;
       }
     } catch (e) {
-      console.warn('[Supabase Update Settings]:', e);
+      console.error('[Supabase Update Settings]:', e);
+      if (isSupabaseConfigured()) throw e;
     }
 
     // Local fallback
@@ -57,8 +61,9 @@ export const settingsService = {
 
       return { isBookingOpen: isOpenFinal, message };
     } catch (e) {
-      console.warn('[Supabase Toggle Booking]:', e);
-      // Local fallback
+      console.error('[Supabase Toggle Booking]:', e);
+      if (isSupabaseConfigured()) throw e;
+
       const cur = getLocal<SystemSettings>(STORAGE_KEYS.SETTINGS, INITIAL_SETTINGS);
       cur.isBookingOpen = typeof isOpen === 'boolean' ? isOpen : !cur.isBookingOpen;
       setLocal(STORAGE_KEYS.SETTINGS, cur);

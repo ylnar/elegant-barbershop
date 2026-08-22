@@ -57,7 +57,14 @@ export function useBarbershopData() {
     const handleFocus = () => {
       loadData();
     };
+    // Also handle visibility change (mobile tab switch, minimize, etc.)
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        loadData();
+      }
+    };
     window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibility);
 
     if (!isSupabaseConfigured()) {
       return () => {
@@ -112,6 +119,7 @@ export function useBarbershopData() {
 
     return () => {
       window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibility);
       subscriptionsRef.current.forEach((sub) => {
         try {
           sub.unsubscribe();

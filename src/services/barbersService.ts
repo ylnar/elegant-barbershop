@@ -1,14 +1,14 @@
 import { Barber } from '../types';
 import { INITIAL_BARBERS } from '../data/initialData';
 import { STORAGE_KEYS, getLocal, setLocal } from './storage';
-import { fetchBarbersLive, dbCreateBarber, dbUpdateBarber, dbDeleteBarber } from './supabaseClient';
+import { fetchBarbersLive, dbCreateBarber, dbUpdateBarber, dbDeleteBarber, getSupabaseClient } from './supabaseClient';
 
 export const barbersService = {
   async getBarbers(): Promise<Barber[]> {
     // 1. Direct Supabase client
     try {
       const liveBarbers = await fetchBarbersLive();
-      if (liveBarbers && liveBarbers.length > 0) {
+      if (liveBarbers !== null) {
         setLocal(STORAGE_KEYS.BARBERS, liveBarbers);
         return liveBarbers;
       }
@@ -16,6 +16,7 @@ export const barbersService = {
       // Fall through to local cache
     }
 
+    if (getSupabaseClient()) throw new Error('Gagal membaca barber dari Supabase.');
     return getLocal<Barber[]>(STORAGE_KEYS.BARBERS, INITIAL_BARBERS);
   },
 
