@@ -410,57 +410,25 @@ export const TransactionsTab: React.FC<TransactionsTabProps> = ({
                   className="p-3.5 rounded-2xl bg-[#14141E] border border-stone-800 shadow-md"
                 >
                   <div className="flex items-start justify-between gap-2.5">
-                    {/* Left Info: Customer, Invoice, Barber & Service */}
+                    {/* Left: Invoice, Customer, Time */}
                     <div className="min-w-0 flex-1 space-y-1">
+                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-stone-900 border border-stone-800 text-[#D4AF37]">
+                        {t.invoiceNumber}
+                      </span>
+
                       <span
                         className="font-bold text-sm text-white block truncate"
                         title={t.customerName}
                       >
-                        {truncateChars(t.customerName || 'Tamu Walk-in', 24)}
+                        {truncateChars(t.customerName || 'Tamu Walk-in', 28)}
                       </span>
 
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-stone-900 border border-stone-800 text-[#D4AF37]">
-                          {t.invoiceNumber}
-                        </span>
-                        <span
-                          className={`text-[9px] font-bold uppercase px-2 py-0.5 rounded ${
-                            t.paymentMethod === 'cash'
-                              ? 'bg-amber-500/20 text-amber-300'
-                              : t.paymentMethod === 'qris'
-                              ? 'bg-blue-500/20 text-blue-300'
-                              : 'bg-purple-500/20 text-purple-300'
-                          }`}
-                        >
-                          {t.paymentMethod.toUpperCase()}
-                        </span>
-                      </div>
-
-                      <p
-                        className="text-xs text-stone-300 truncate"
-                        title={t.items?.map((i) => i.serviceName).join(', ')}
-                      >
-                        <span className="text-stone-400">Barber:</span>{' '}
-                        <strong className="text-stone-200 font-medium">
-                          {truncateChars(t.barberName, 16)}
-                        </strong>
-                        {t.items && t.items.length > 0 && (
-                          <> • {truncateChars(t.items.map((i) => i.serviceName).join(', '), 40)}</>
-                        )}
-                      </p>
-
-                      <div className="flex items-center gap-2 text-[11px] text-stone-500 pt-0.5">
+                      <div className="text-[11px] text-stone-500">
                         <span>{t.createdAt.slice(0, 16).replace('T', ' ')}</span>
-                        {t.customerPhone && (
-                          <>
-                            <span>•</span>
-                            <span className="font-mono">{t.customerPhone}</span>
-                          </>
-                        )}
                       </div>
                     </div>
 
-                    {/* Right: Amount + Menu Titik-3 */}
+                    {/* Right: Amount + Menu */}
                     <div className="shrink-0 flex flex-col items-end gap-2 self-stretch py-0.5">
                       <span className="text-sm font-extrabold font-mono text-[#D4AF37] whitespace-nowrap">
                         {formatRupiah(t.totalAmount)}
@@ -503,9 +471,6 @@ export const TransactionsTab: React.FC<TransactionsTabProps> = ({
                     <th className="py-3.5 px-4 font-semibold">No. Invoice</th>
                     <th className="py-3.5 px-4 font-semibold">Waktu</th>
                     <th className="py-3.5 px-4 font-semibold">Pelanggan</th>
-                    <th className="py-3.5 px-4 font-semibold">Barber</th>
-                    <th className="py-3.5 px-4 font-semibold">Layanan</th>
-                    <th className="py-3.5 px-4 font-semibold">Metode</th>
                     <th className="py-3.5 px-4 font-semibold text-right">Total (Rp)</th>
                     <th className="py-3.5 px-4 font-semibold text-center">Aksi</th>
                   </tr>
@@ -522,44 +487,18 @@ export const TransactionsTab: React.FC<TransactionsTabProps> = ({
                       <td className="py-3 px-4 text-stone-400 font-mono text-[11px]">
                         {t.createdAt.slice(0, 16).replace('T', ' ')}
                       </td>
-                      <td className="py-3 px-4 max-w-[160px]">
+                      <td className="py-3 px-4 max-w-[180px]">
                         <span
                           className="font-semibold text-white group-hover:text-[#D4AF37] transition-colors block truncate"
                           title={t.customerName}
                         >
-                          {truncateChars(t.customerName || 'Tamu Walk-in', 22)}
+                          {truncateChars(t.customerName || 'Tamu Walk-in', 24)}
                         </span>
                         {t.customerPhone && (
                           <span className="text-[10px] text-stone-400 block font-mono">
                             {t.customerPhone}
                           </span>
                         )}
-                      </td>
-                      <td
-                        className="py-3 px-4 text-stone-300 max-w-[120px] truncate"
-                        title={t.barberName}
-                      >
-                        {truncateChars(t.barberName, 16)}
-                      </td>
-                      <td className="py-3 px-4 max-w-xs truncate text-stone-200" title={t.items?.map((i) => i.serviceName).join(', ')}>
-                        {t.items && t.items.length > 0 ? (
-                          t.items.map((i) => i.serviceName).join(', ')
-                        ) : (
-                          <span className="text-stone-500 italic">—</span>
-                        )}
-                      </td>
-                      <td className="py-3 px-4">
-                        <span
-                          className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-md ${
-                            t.paymentMethod === 'cash'
-                              ? 'bg-amber-500/20 text-amber-300'
-                              : t.paymentMethod === 'qris'
-                              ? 'bg-blue-500/20 text-blue-300'
-                              : 'bg-purple-500/20 text-purple-300'
-                          }`}
-                        >
-                          {t.paymentMethod.toUpperCase()}
-                        </span>
                       </td>
                       <td className="py-3 px-4 font-mono font-bold text-right text-[#D4AF37]">
                         {formatRupiah(t.totalAmount)}
