@@ -13,7 +13,7 @@ import {
   CreditCard,
   CalendarCheck,
 } from 'lucide-react';
-import { Booking, Service, Barber, SystemSettings, Transaction } from '../../types';
+import { Booking, Service, Barber, SystemSettings, Transaction, PaymentMethod } from '../../types';
 import { api } from '../../services/api';
 import { MasterSwitchTab } from './tabs/MasterSwitchTab';
 import { getLocalTodayStr } from '../../utils/formatters';
@@ -28,6 +28,7 @@ import { BarberFormModal } from './modals/BarberFormModal';
 import { WalkInFormModal } from './modals/WalkInFormModal';
 import { AdminBookingModal } from './modals/AdminBookingModal';
 import { ConfirmModal } from './modals/ConfirmModal';
+import { CompletionPaymentModal } from './modals/CompletionPaymentModal';
 import { toast } from '../ui/Toast';
 
 interface AdminUser {
@@ -88,6 +89,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [isDeletingBooking, setIsDeletingBooking] = useState<boolean>(false);
   const [clearHistoryOpen, setClearHistoryOpen] = useState<boolean>(false);
   const [isPurgingHistory, setIsPurgingHistory] = useState<boolean>(false);
+
+  // Completion Payment Modal State
+  const [completionBooking, setCompletionBooking] = useState<Booking | null>(null);
+  const [completionModalOpen, setCompletionModalOpen] = useState<boolean>(false);
 
   // Kunci scroll halaman luar (body) saat Dashboard Admin terbuka
   useEffect(() => {
@@ -258,38 +263,55 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   };
 
   const handleBookingStatusChange = async (bookingId: string, status: Booking['status']) => {
-    await api.updateBooking(bookingId, { status });
-
-    // Auto-create transaction when booking is marked completed
+    // When completing, show payment modal first
     if (status === 'completed') {
       const booking = bookings.find((b) => b.id === bookingId);
       if (booking) {
-        try {
-          await api.createTransaction({
-            customerName: booking.customerName,
-            customerPhone: booking.customerPhone,
-            barberId: booking.barberId,
-            items: [{
-              serviceId: booking.serviceId,
-              serviceName: booking.serviceName,
-              price: booking.servicePrice,
-              qty: 1,
-            }],
-            subtotal: booking.totalAmount,
-            discount: 0,
-            totalAmount: booking.totalAmount,
-            paymentMethod: 'cash',
-            amountPaid: booking.totalAmount,
-            changeAmount: 0,
-            notes: `Auto dari reservasi ${booking.bookingCode}`,
-          });
-          toast.success(`Selesai! Transaksi otomatis dibuat dari ${booking.bookingCode} & dipindah ke Riwayat.`);
-        } catch {
-          toast.error('Gagal membuat transaksi otomatis dari reservasi.');
-        }
+        setCompletionBooking(booking);
+        setCompletionModalOpen(true);
       }
+      return;
     }
 
+    // For other statuses (pending, confirmed, in_service, cancelled), update directly
+    await api.updateBooking(bookingId, { status });
+    await onRefreshData();
+  };
+
+  // Called after user confirms payment in CompletionPaymentModal
+  const handleConfirmCompletion = async (paymentMethod: PaymentMethod, amountPaid: number) => {
+    if (!completionBooking) return;
+
+    // 1. Update booking status to completed
+    await api.updateBooking(completionBooking.id, { status: 'completed' });
+
+    // 2. Create transaction with selected payment details
+    const changeAmount = Math.max(0, amountPaid - completionBooking.totalAmount);
+    try {
+      await api.createTransaction({
+        customerName: completionBooking.customerName,
+        customerPhone: completionBooking.customerPhone,
+        barberId: completionBooking.barberId,
+        items: [{
+          serviceId: completionBooking.serviceId,
+          serviceName: completionBooking.serviceName,
+          price: completionBooking.servicePrice,
+          qty: 1,
+        }],
+        subtotal: completionBooking.totalAmount,
+        discount: 0,
+        totalAmount: completionBooking.totalAmount,
+        paymentMethod,
+        amountPaid,
+        changeAmount,
+        notes: `Auto dari reservasi ${completionBooking.bookingCode}`,
+      });
+      toast.success(`Reservasi ${completionBooking.bookingCode} selesai! Transaksi berhasil dibuat.`);
+    } catch {
+      toast.error('Gagal membuat transaksi. Status booking tetap diupdate ke Selesai.');
+    }
+
+    setCompletionBooking(null);
     await onRefreshData();
   };
 
@@ -727,6 +749,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         isLoading={isDeletingBarber}
         onConfirm={handleConfirmDeleteBarber}
         onClose={() => setBarberToDelete(null)}
+      />
+
+      {/* Completion Payment Modal */}
+      <CompletionPaymentModal
+        isOpen={completionModalOpen}
+        booking={completionBooking}
+        onClose={() => {
+          setCompletionModalOpen(false);
+          setCompletionBooking(null);
+        }}
+        onConfirm={handleConfirmCompletion}
       />
 
       {/* Logout Confirmation */}
