@@ -396,46 +396,36 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                         </span>
                       </div>
 
-                      {/* Service Grid Cards */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                        {activeServices.map((service) => {
-                          const isSelected = service.id === selectedServiceId;
-                          return (
-                            <div
-                              key={service.id}
-                              onClick={() => {
-                                setSelectedServiceId(service.id);
-                                if (onSelectServiceId) onSelectServiceId(service.id);
-                              }}
-                              className={`p-4 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between relative overflow-hidden group ${
-                                isSelected
-                                  ? 'bg-[#1C180E] border-[#D4AF37] shadow-lg shadow-[#D4AF37]/10'
-                                  : 'bg-[#0E0E14] border-stone-800/80 hover:border-stone-700'
-                              }`}
-                            >
-                              {isSelected && (
-                                <div className="absolute top-3 right-3 text-[#D4AF37]">
-                                  <CheckCircle2 className="w-5 h-5" />
-                                </div>
-                              )}
-
-                              <div className="flex items-center gap-2 pr-6">
-                                <h4 className="text-sm sm:text-base font-bold text-white font-serif group-hover:text-[#D4AF37] transition-colors">
-                                  {service.name}
-                                </h4>
-                              </div>
-
-                              <div className="flex items-center justify-between pt-3 mt-3 border-t border-stone-800/60">
-                                <span className="text-[10px] text-stone-500 uppercase tracking-wider">
-                                  {isSelected ? 'Dipilih' : 'Tersedia'}
-                                </span>
-                                <span className="text-sm font-bold text-[#D4AF37] font-serif">
-                                  {formatIDR(service.price)}
-                                </span>
-                              </div>
-                            </div>
-                          );
-                        })}
+                      <div className="pt-1">
+                        <label htmlFor="booking-service" className="sr-only">
+                          Pilih layanan
+                        </label>
+                        <select
+                          id="booking-service"
+                          value={selectedServiceId}
+                          onChange={(event) => {
+                            setSelectedServiceId(event.target.value);
+                            if (onSelectServiceId) onSelectServiceId(event.target.value);
+                          }}
+                          disabled={activeServices.length === 0}
+                          className="w-full rounded-2xl border border-stone-700 bg-[#0E0E14] px-4 py-3.5 text-sm font-semibold text-white outline-none transition-colors focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/20 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {activeServices.length === 0 ? (
+                            <option value="">Belum ada layanan tersedia</option>
+                          ) : (
+                            activeServices.map((service) => (
+                              <option key={service.id} value={service.id}>
+                                {service.name} - {formatIDR(service.price)}
+                              </option>
+                            ))
+                          )}
+                        </select>
+                        {currentService && (
+                          <div className="mt-2 flex items-center justify-between px-1 text-xs text-stone-400">
+                            <span>Layanan dipilih</span>
+                            <span className="font-bold text-[#D4AF37]">{formatIDR(currentService.price)}</span>
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -455,54 +445,26 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                         </span>
                       </div>
 
-                      {/* Barber Selection List */}
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-                        {/* Option: Any Available Barber */}
-                        <div
-                          onClick={() => setSelectedBarberId('any')}
-                          className={`p-4 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between ${
-                            selectedBarberId === 'any'
-                              ? 'bg-[#1C180E] border-[#D4AF37] shadow-lg shadow-[#D4AF37]/10'
-                              : 'bg-[#0E0E14] border-stone-800/80 hover:border-stone-700'
-                          }`}
+                      <div className="pt-1">
+                        <label htmlFor="booking-barber" className="sr-only">
+                          Pilih master barber
+                        </label>
+                        <select
+                          id="booking-barber"
+                          value={selectedBarberId}
+                          onChange={(event) => setSelectedBarberId(event.target.value)}
+                          className="w-full rounded-2xl border border-stone-700 bg-[#0E0E14] px-4 py-3.5 text-sm font-semibold text-white outline-none transition-colors focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/20"
                         >
-                          <div className="flex items-center gap-3">
-                            <div className="w-11 h-11 rounded-xl bg-stone-800 flex items-center justify-center text-[#D4AF37] shrink-0 font-serif font-bold text-base">
-                              ✨
-                            </div>
-                            <div>
-                              <h4 className="text-xs sm:text-sm font-bold text-white">Barber Siap Pertama</h4>
-                              <span className="text-[10px] text-stone-400">Paling Cepat Dilayani</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Specific Barbers */}
-                        {activeBarbers.map((barber) => {
-                          const isSelected = barber.id === selectedBarberId;
-                          return (
-                            <div
-                              key={barber.id}
-                              onClick={() => setSelectedBarberId(barber.id)}
-                              className={`p-4 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between ${
-                                isSelected
-                                  ? 'bg-[#1C180E] border-[#D4AF37] shadow-lg shadow-[#D4AF37]/10'
-                                  : 'bg-[#0E0E14] border-stone-800/80 hover:border-stone-700'
-                              }`}
-                            >
-                              <div className="flex items-center gap-3">
-                                <div className="w-11 h-11 rounded-xl bg-[#D4AF37]/15 border border-[#D4AF37]/30 flex items-center justify-center shrink-0">
-                                  <span className="text-sm font-bold text-[#D4AF37]">{barber.name.charAt(0)}</span>
-                                </div>
-                                <div>
-                                  <h4 className="text-xs sm:text-sm font-bold text-white font-serif">
-                                    {barber.name}
-                                  </h4>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
+                          <option value="any">Barber Siap Pertama - Paling Cepat Dilayani</option>
+                          {activeBarbers.map((barber) => (
+                            <option key={barber.id} value={barber.id}>
+                              {barber.name}
+                            </option>
+                          ))}
+                        </select>
+                        <p className="mt-2 px-1 text-xs text-stone-400">
+                          Pilih barber favorit atau serahkan ke barber yang siap lebih dulu.
+                        </p>
                       </div>
                     </div>
 

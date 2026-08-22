@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import { Booking, Service, Transaction } from '../../../types';
-import { formatIDR } from '../../../utils/formatters';
+import { formatIDR, toWIBDateTimeStr, getWIBTodayISO } from '../../../utils/formatters';
 import { TrendingUp, DollarSign, CreditCard, Users, Scissors, Download, Calendar } from 'lucide-react';
 import { toast } from '../../ui/Toast';
 import { ConfirmModal } from '../modals/ConfirmModal';
@@ -69,7 +69,7 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({ bookings, services, tran
       const trxData = transactions.map((t, idx) => ({
         'No.': idx + 1,
         'Invoice': t.invoiceNumber,
-        'Tanggal': t.createdAt.slice(0, 16).replace('T', ' '),
+        'Tanggal': toWIBDateTimeStr(t.createdAt),
         'Pelanggan': t.customerName,
         'No. HP': t.customerPhone || '-',
         'Barber': t.barberName,
@@ -152,7 +152,7 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({ bookings, services, tran
       XLSX.utils.book_append_sheet(wb, wsBooking, 'Data Reservasi');
     }
 
-    const dateStr = new Date().toISOString().slice(0, 10);
+    const dateStr = getWIBTodayISO();
     const fileName = `Laporan_Elegant_Barbershop_${dateStr}.xlsx`;
     XLSX.writeFile(wb, fileName);
 
@@ -196,7 +196,7 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({ bookings, services, tran
       <ConfirmModal
         isOpen={exportConfirmOpen}
         title="Konfirmasi Export Laporan Excel"
-        description={`File "Laporan_Elegant_Barbershop_${new Date().toISOString().slice(0, 10)}.xlsx" akan berisi ${transactions.length} transaksi kasir dan ${bookings.length} data reservasi (${services.length} layanan). Sheet: Ringkasan KPI${transactions.length > 0 ? ', Detail Transaksi' : ''}, Metode Pembayaran, Performa Layanan${bookings.length > 0 ? ', Data Reservasi' : ''}. Lanjutkan export?`}
+        description={`File "Laporan_Elegant_Barbershop_${getWIBTodayISO()}.xlsx" akan berisi ${transactions.length} transaksi kasir dan ${bookings.length} data reservasi (${services.length} layanan). Sheet: Ringkasan KPI${transactions.length > 0 ? ', Detail Transaksi' : ''}, Metode Pembayaran, Performa Layanan${bookings.length > 0 ? ', Data Reservasi' : ''}. Lanjutkan export?`}
         confirmText="Ya, Export Sekarang"
         cancelText="Batal"
         variant="primary"

@@ -1,22 +1,92 @@
-/** Get today's date string in local timezone (YYYY-MM-DD) */
-export function getLocalTodayStr(): string {
-  return getLocalDateStr(0);
-}
+/** Timezone constant for WIB (Asia/Jakarta, UTC+7) */
+const WIB_TIMEZONE = 'Asia/Jakarta';
 
-/** Get a local-timezone date string offset by N days from today (avoids UTC bugs of toISOString) */
-export function getLocalDateStr(offsetDays = 0): string {
-  const d = new Date();
-  d.setDate(d.getDate() + offsetDays);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+/**
+ * Get today's date string in WIB timezone (YYYY-MM-DD).
+ * Always uses Asia/Jakarta regardless of browser locale.
+ */
+export function getLocalTodayStr(): string {
+  return getWIBDateStr(0);
 }
 
 /**
- * Convert any ISO timestamp (possibly UTC from Supabase) to local YYYY-MM-DD.
- * This avoids timezone mismatches when comparing UTC stored dates with local "today".
+ * Get a WIB date string offset by N days from today.
+ */
+export function getWIBDateStr(offsetDays = 0): string {
+  const d = new Date();
+  d.setDate(d.getDate() + offsetDays);
+  return formatAsWIB(d, 'date');
+}
+
+/**
+ * @deprecated Use getWIBDateStr or getLocalTodayStr instead.
+ * Kept for backwards compatibility — uses browser local timezone.
+ */
+export function getLocalDateStr(offsetDays = 0): string {
+  return getWIBDateStr(offsetDays);
+}
+
+/**
+ * Convert any ISO timestamp (UTC from Supabase) to WIB date string (YYYY-MM-DD).
  */
 export function toLocalDateStr(isoString: string): string {
-  const d = new Date(isoString);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  if (!isoString) return '';
+  return formatAsWIB(new Date(isoString), 'date');
+}
+
+/**
+ * Convert any ISO timestamp (UTC from Supabase) to WIB datetime string.
+ * Output format: "2026-08-23 17:30"
+ */
+export function toWIBDateTimeStr(isoString: string): string {
+  if (!isoString) return '';
+  return formatAsWIB(new Date(isoString), 'datetime');
+}
+
+/**
+ * Get current datetime in WIB for export filenames.
+ * Output format: "2026-08-23"
+ */
+export function getWIBTodayISO(): string {
+  return formatAsWIB(new Date(), 'date');
+}
+
+/**
+ * Internal helper: format a Date object as WIB string.
+ */
+function formatAsWIB(d: Date, mode: 'date' | 'datetime'): string {
+  try {
+    if (mode === 'date') {
+      return new Intl.DateTimeFormat('en-CA', {
+        timeZone: WIB_TIMEZONE,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      }).format(d); // en-CA gives YYYY-MM-DD
+    }
+    // datetime: "YYYY-MM-DD HH:mm"
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: WIB_TIMEZONE,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).formatToParts(d);
+    const get = (type: string) => parts.find((p) => p.type === type)?.value || '00';
+    return `${get('year')}-${get('month')}-${get('day')} ${get('hour')}:${get('minute')}`;
+  } catch {
+    // Fallback for old browsers
+    const off = 7 * 60; // WIB offset in minutes
+    const utc = d.getTime() + d.getTimezoneOffset() * 60000;
+    const wib = new Date(utc + off * 60000);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    if (mode === 'date') {
+      return `${wib.getFullYear()}-${pad(wib.getMonth() + 1)}-${pad(wib.getDate())}`;
+    }
+    return `${wib.getFullYear()}-${pad(wib.getMonth() + 1)}-${pad(wib.getDate())} ${pad(wib.getHours())}:${pad(wib.getMinutes())}`;
+  }
 }
 
 /** Sanitasi input nomor WhatsApp: angka saja, maksimal 16 digit */
@@ -61,6 +131,7 @@ export function formatDateIndonesian(dateString: string): string {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
+      timeZone: WIB_TIMEZONE,
     }).format(date);
   } catch {
     return dateString;

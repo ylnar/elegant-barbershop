@@ -42,7 +42,8 @@ const formatDateTime = (isoStr: string) => {
       hour: '2-digit',
       minute: '2-digit',
       second: '2-digit',
-    }).format(d);
+      timeZone: 'Asia/Jakarta',
+    }).format(d) + ' WIB';
   } catch {
     return isoStr;
   }

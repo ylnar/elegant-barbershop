@@ -26,7 +26,7 @@ import { TransactionDetailModal } from '../modals/TransactionDetailModal';
 import { ConfirmModal } from '../modals/ConfirmModal';
 import { RowActionMenu } from '../../ui/RowActionMenu';
 import { toast } from '../../ui/Toast';
-import { getLocalTodayStr, toLocalDateStr, formatIDR, truncateChars } from '../../../utils/formatters';
+import { getLocalTodayStr, toLocalDateStr, formatIDR, truncateChars, toWIBDateTimeStr, getWIBTodayISO } from '../../../utils/formatters';
 
 interface TransactionsTabProps {
   services: Service[];
@@ -162,7 +162,7 @@ export const TransactionsTab: React.FC<TransactionsTabProps> = ({
     const exportData = filteredTransactions.map((t, idx) => ({
       'No.': idx + 1,
       'Invoice': t.invoiceNumber,
-      'Tanggal & Waktu': t.createdAt.slice(0, 16).replace('T', ' '),
+      'Tanggal & Waktu': toWIBDateTimeStr(t.createdAt),
       'Pelanggan': t.customerName || 'Tamu Walk-in',
       'No. HP': t.customerPhone || '-',
       'Barber': t.barberName,
@@ -223,7 +223,7 @@ export const TransactionsTab: React.FC<TransactionsTabProps> = ({
     wsSummary['!cols'] = [{ wch: 28 }, { wch: 18 }];
     XLSX.utils.book_append_sheet(wb, wsSummary, 'Ringkasan');
 
-    const dateStr = new Date().toISOString().slice(0, 10);
+    const dateStr = getWIBTodayISO();
     const fileName = `Transaksi_Kasir_${dateStr}.xlsx`;
     XLSX.writeFile(wb, fileName);
 
@@ -424,7 +424,7 @@ export const TransactionsTab: React.FC<TransactionsTabProps> = ({
                       </span>
 
                       <div className="text-[11px] text-stone-500">
-                        <span>{t.createdAt.slice(0, 16).replace('T', ' ')}</span>
+                        <span>{toWIBDateTimeStr(t.createdAt)}</span>
                       </div>
                     </div>
 
@@ -485,7 +485,7 @@ export const TransactionsTab: React.FC<TransactionsTabProps> = ({
                         {t.invoiceNumber}
                       </td>
                       <td className="py-3 px-4 text-stone-400 font-mono text-[11px]">
-                        {t.createdAt.slice(0, 16).replace('T', ' ')}
+                        {toWIBDateTimeStr(t.createdAt)}
                       </td>
                       <td className="py-3 px-4 max-w-[180px]">
                         <span
@@ -633,7 +633,7 @@ export const TransactionsTab: React.FC<TransactionsTabProps> = ({
       <ConfirmModal
         isOpen={exportConfirmOpen}
         title="Konfirmasi Export Excel"
-        description={`File "Transaksi_Kasir_${new Date().toISOString().slice(0, 10)}.xlsx" akan berisi ${filteredTransactions.length} transaksi (total omzet ${formatIDR(filteredTransactions.reduce((s, t) => s + t.totalAmount, 0))}) sesuai filter aktif. Sheet: Transaksi Kasir & Ringkasan. Lanjutkan export?`}
+        description={`File "Transaksi_Kasir_${getWIBTodayISO()}.xlsx" akan berisi ${filteredTransactions.length} transaksi (total omzet ${formatIDR(filteredTransactions.reduce((s, t) => s + t.totalAmount, 0))}) sesuai filter aktif. Sheet: Transaksi Kasir & Ringkasan. Lanjutkan export?`}
         confirmText="Ya, Export Sekarang"
         cancelText="Batal"
         variant="primary"
