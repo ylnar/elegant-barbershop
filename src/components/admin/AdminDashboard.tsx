@@ -523,16 +523,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <h2 className="text-base font-bold text-white font-serif tracking-wide">
                 {navItems.find((n) => n.id === activeTab)?.label}
               </h2>
-              <p className="text-[11px] text-stone-400 hidden sm:block">
-                Kota Solok, Sumatera Barat — Est. 2024
-              </p>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
             {/* View Website */}
             <button
-              onClick={() => setLogoutModalOpen(true)}
+              onClick={onClose}
               className="hidden sm:flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#141420] hover:bg-[#1E1E2E] border border-stone-800 text-xs font-semibold text-stone-300 transition-colors cursor-pointer"
             >
               <Store className="w-3.5 h-3.5 text-[#D4AF37]" />

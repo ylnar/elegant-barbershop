@@ -13,6 +13,8 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
   }
 
   body {
@@ -61,4 +63,28 @@
 
 ::-webkit-scrollbar-thumb:hover {
   background: #D4AF37;
+}
+
+/* ── Anti-Zoom Guard (Mobile) ───────────────────────────────────────────────
+   iOS Safari otomatis zoom-in saat fokus ke input dengan font < 16px.
+   Semua kontrol form dipaksa 16px pada perangkat sentuh agar halaman
+   tidak pernah "ter-zoom" lagi, apapun kelas text-* yang dipakai komponen. */
+@media (pointer: coarse) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+    line-height: 1.5 !important;
+  }
+}
+
+/* Hilangkan jeda & zoom tak sengaja akibat double-tap di elemen interaktif */
+button,
+a,
+input,
+select,
+textarea,
+label,
+[role='button'] {
+  touch-action: manipulation;
 }
