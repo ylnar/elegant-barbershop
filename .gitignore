@@ -6,3 +6,6 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# API serverless bundle (di-generate oleh build script)
+api/index.cjs
