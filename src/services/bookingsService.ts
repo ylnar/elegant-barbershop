@@ -161,13 +161,13 @@ export const bookingsService = {
         console.error('[Supabase Delete Booking]:', e.message);
         throw e;
       }
+      // ✅ Update local cache after successful Supabase delete
+      const bookings = getLocal<Booking[]>(STORAGE_KEYS.BOOKINGS, INITIAL_BOOKINGS);
+      setLocal(STORAGE_KEYS.BOOKINGS, bookings.filter((b) => b.id !== id && b.bookingCode !== id));
+      return true;
     }
 
-    if (getSupabaseClient()) {
-      throw new Error('Booking tidak memiliki ID Supabase yang valid.');
-    }
-
-    // Always sync local cache
+    // Local-only fallback when Supabase is not configured
     const bookings = getLocal<Booking[]>(STORAGE_KEYS.BOOKINGS, INITIAL_BOOKINGS);
     setLocal(STORAGE_KEYS.BOOKINGS, bookings.filter((b) => b.id !== id && b.bookingCode !== id));
     return true;

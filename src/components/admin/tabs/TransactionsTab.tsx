@@ -297,7 +297,7 @@ export const TransactionsTab: React.FC<TransactionsTabProps> = ({
             className="flex-1 sm:flex-none px-6 py-3.5 rounded-2xl bg-[#D4AF37] hover:bg-[#E5C378] text-stone-950 font-bold text-xs sm:text-sm uppercase tracking-wider shadow-xl shadow-[#D4AF37]/20 flex items-center justify-center gap-2.5 transition-all cursor-pointer active:scale-95 shrink-0"
           >
             <Plus className="w-4 h-4 stroke-[3]" />
-            <span>+ Transaksi Baru</span>
+            <span>Transaksi Baru</span>
           </button>
         </div>
       </div>

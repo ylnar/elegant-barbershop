@@ -119,13 +119,13 @@ export const transactionsService = {
         console.error('[Supabase Delete Transaction]:', e.message);
         throw e;
       }
+      // ✅ Update local cache after successful Supabase delete
+      const list = getLocal<Transaction[]>(STORAGE_KEYS.TRANSACTIONS, INITIAL_TRANSACTIONS).filter((t) => t.id !== id);
+      setLocal(STORAGE_KEYS.TRANSACTIONS, list);
+      return true;
     }
 
-    if (getSupabaseClient()) {
-      throw new Error('Transaksi tidak memiliki ID Supabase yang valid.');
-    }
-
-    // Always sync local cache
+    // Local-only fallback when Supabase is not configured
     const list = getLocal<Transaction[]>(STORAGE_KEYS.TRANSACTIONS, INITIAL_TRANSACTIONS).filter((t) => t.id !== id);
     setLocal(STORAGE_KEYS.TRANSACTIONS, list);
     return true;
