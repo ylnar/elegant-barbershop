@@ -25,6 +25,10 @@ export const Footer: React.FC<FooterProps> = ({
                 <img
                   src={logoImg}
                   alt="Logo Elegant Barbershop Solok"
+                  width={40}
+                  height={40}
+                  loading="lazy"
+                  decoding="async"
                   referrerPolicy="no-referrer"
                   className="w-full h-full object-cover"
                 />

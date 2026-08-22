@@ -49,6 +49,10 @@ export const Navbar: React.FC<NavbarProps> = ({
               <img
                 src={logoImg}
                 alt="Logo Elegant Barbershop Solok"
+                width={48}
+                height={48}
+                fetchPriority="high"
+                decoding="async"
                 referrerPolicy="no-referrer"
                 className="w-full h-full object-cover"
               />

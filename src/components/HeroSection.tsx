@@ -25,6 +25,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
           src={heroInteriorImg}
           alt="Suasana Ruang Pangkas Elegant Barbershop Solok Sumatera Barat"
           loading="eager"
+          fetchPriority="high"
           decoding="async"
           referrerPolicy="no-referrer"
           className="w-full h-full object-cover object-center filter brightness-[0.38] contrast-[1.12] saturate-[1.20]"

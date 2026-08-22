@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://elegantbarbershop.solok.id/sitemap.xml
