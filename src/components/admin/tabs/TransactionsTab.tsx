@@ -17,14 +17,16 @@ import {
   ReceiptText,
   Download,
   Eye,
+  Copy,
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
 import { TransactionModal } from '../modals/TransactionModal';
 import { TransactionDetailModal } from '../modals/TransactionDetailModal';
 import { ConfirmModal } from '../modals/ConfirmModal';
+import { RowActionMenu } from '../../ui/RowActionMenu';
 import { toast } from '../../ui/Toast';
-import { getLocalTodayStr, formatIDR } from '../../../utils/formatters';
+import { getLocalTodayStr, formatIDR, truncateChars } from '../../../utils/formatters';
 import * as XLSX from 'xlsx';
 
 interface TransactionsTabProps {
@@ -56,6 +58,10 @@ export const TransactionsTab: React.FC<TransactionsTabProps> = ({
 
   // Export Excel Double-Confirm State
   const [exportConfirmOpen, setExportConfirmOpen] = useState<boolean>(false);
+
+  // Menu titik-3: hanya satu menu yang boleh terbuka di seluruh daftar
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const closeMenu = useCallback(() => setOpenMenuId(null), []);
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -106,6 +112,16 @@ export const TransactionsTab: React.FC<TransactionsTabProps> = ({
   const handleViewDetail = (tx: Transaction) => {
     setSelectedTransaction(tx);
     setDetailModalOpen(true);
+  };
+
+  // Salin nomor invoice ke clipboard (dengan fallback aman)
+  const handleCopyInvoice = async (invoiceNumber: string) => {
+    try {
+      await navigator.clipboard.writeText(invoiceNumber);
+      toast.success(`No. invoice ${invoiceNumber} disalin.`);
+    } catch {
+      toast.error('Gagal menyalin. Salin manual: ' + invoiceNumber);
+    }
   };
 
   // Filtered Transactions for History
@@ -390,25 +406,45 @@ export const TransactionsTab: React.FC<TransactionsTabProps> = ({
               {paginatedTransactions.map((t) => (
                 <div
                   key={t.id}
-                  className="p-3.5 rounded-2xl bg-[#14141E] border border-stone-800 shadow-md space-y-2.5"
+                  className="p-3.5 rounded-2xl bg-[#14141E] border border-stone-800 shadow-md"
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    {/* Left Info: Customer, Barber & Service Summary */}
+                  <div className="flex items-start justify-between gap-2.5">
+                    {/* Left Info: Customer, Invoice, Barber & Service */}
                     <div className="min-w-0 flex-1 space-y-1">
+                      <span
+                        className="font-bold text-sm text-white block truncate"
+                        title={t.customerName}
+                      >
+                        {truncateChars(t.customerName || 'Tamu Walk-in', 24)}
+                      </span>
+
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-bold text-sm text-white truncate">
-                          {t.customerName}
-                        </span>
                         <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-stone-900 border border-stone-800 text-[#D4AF37]">
                           {t.invoiceNumber}
                         </span>
+                        <span
+                          className={`text-[9px] font-bold uppercase px-2 py-0.5 rounded ${
+                            t.paymentMethod === 'cash'
+                              ? 'bg-amber-500/20 text-amber-300'
+                              : t.paymentMethod === 'qris'
+                              ? 'bg-blue-500/20 text-blue-300'
+                              : 'bg-purple-500/20 text-purple-300'
+                          }`}
+                        >
+                          {t.paymentMethod.toUpperCase()}
+                        </span>
                       </div>
 
-                      <p className="text-xs text-stone-300 truncate">
+                      <p
+                        className="text-xs text-stone-300 truncate"
+                        title={t.items?.map((i) => i.serviceName).join(', ')}
+                      >
                         <span className="text-stone-400">Barber:</span>{' '}
-                        <strong className="text-stone-200 font-medium">{t.barberName}</strong>
+                        <strong className="text-stone-200 font-medium">
+                          {truncateChars(t.barberName, 16)}
+                        </strong>
                         {t.items && t.items.length > 0 && (
-                          <> • {t.items.map((i) => i.serviceName).join(', ')}</>
+                          <> • {truncateChars(t.items.map((i) => i.serviceName).join(', '), 40)}</>
                         )}
                       </p>
 
@@ -423,43 +459,35 @@ export const TransactionsTab: React.FC<TransactionsTabProps> = ({
                       </div>
                     </div>
 
-                    {/* Right Amount & Actions */}
-                    <div className="flex items-center gap-2.5 shrink-0">
-                      <div className="text-right">
-                        <span className="text-sm font-extrabold font-mono text-[#D4AF37] block">
-                          {formatRupiah(t.totalAmount)}
-                        </span>
-                        <span
-                          className={`inline-block text-[9px] font-bold uppercase px-2 py-0.5 rounded ${
-                            t.paymentMethod === 'cash'
-                              ? 'bg-amber-500/20 text-amber-300'
-                              : t.paymentMethod === 'qris'
-                              ? 'bg-blue-500/20 text-blue-300'
-                              : 'bg-purple-500/20 text-purple-300'
-                          }`}
-                        >
-                          {t.paymentMethod.toUpperCase()}
-                        </span>
-                      </div>
-
-                      <div className="flex flex-col gap-1">
-                        <button
-                          type="button"
-                          onClick={() => handleViewDetail(t)}
-                          className="p-1.5 rounded-lg bg-stone-900 border border-stone-800 hover:bg-blue-500/20 text-stone-400 hover:text-blue-400 transition-colors cursor-pointer"
-                          title="Lihat Detail"
-                        >
-                          <Eye className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handlePromptDelete(t)}
-                          className="p-1.5 rounded-lg bg-stone-900 border border-stone-800 hover:bg-rose-500/20 text-stone-400 hover:text-rose-400 transition-colors cursor-pointer"
-                          title="Hapus Transaksi"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
+                    {/* Right: Amount + Menu Titik-3 */}
+                    <div className="shrink-0 flex flex-col items-end gap-2 self-stretch py-0.5">
+                      <span className="text-sm font-extrabold font-mono text-[#D4AF37] whitespace-nowrap">
+                        {formatRupiah(t.totalAmount)}
+                      </span>
+                      <RowActionMenu
+                        itemId={`trx-mobile-${t.id}`}
+                        isOpen={openMenuId === `trx-mobile-${t.id}`}
+                        onToggle={setOpenMenuId}
+                        ariaLabel={`Aksi untuk transaksi ${t.invoiceNumber}`}
+                        items={[
+                          {
+                            label: 'Lihat Detail',
+                            icon: Eye,
+                            onClick: () => handleViewDetail(t),
+                          },
+                          {
+                            label: 'Salin No. Invoice',
+                            icon: Copy,
+                            onClick: () => void handleCopyInvoice(t.invoiceNumber),
+                          },
+                          {
+                            label: 'Hapus Transaksi',
+                            icon: Trash2,
+                            danger: true,
+                            onClick: () => handlePromptDelete(t),
+                          },
+                        ]}
+                      />
                     </div>
                   </div>
                 </div>
@@ -493,16 +521,26 @@ export const TransactionsTab: React.FC<TransactionsTabProps> = ({
                       <td className="py-3 px-4 text-stone-400 font-mono text-[11px]">
                         {t.createdAt.slice(0, 16).replace('T', ' ')}
                       </td>
-                      <td className="py-3 px-4">
-                        <span className="font-semibold text-white group-hover:text-[#D4AF37] transition-colors block">
-                          {t.customerName}
+                      <td className="py-3 px-4 max-w-[160px]">
+                        <span
+                          className="font-semibold text-white group-hover:text-[#D4AF37] transition-colors block truncate"
+                          title={t.customerName}
+                        >
+                          {truncateChars(t.customerName || 'Tamu Walk-in', 22)}
                         </span>
                         {t.customerPhone && (
-                          <span className="text-[10px] text-stone-400 block">{t.customerPhone}</span>
+                          <span className="text-[10px] text-stone-400 block font-mono">
+                            {t.customerPhone}
+                          </span>
                         )}
                       </td>
-                      <td className="py-3 px-4 text-stone-300">{t.barberName}</td>
-                      <td className="py-3 px-4 max-w-xs truncate text-stone-200">
+                      <td
+                        className="py-3 px-4 text-stone-300 max-w-[120px] truncate"
+                        title={t.barberName}
+                      >
+                        {truncateChars(t.barberName, 16)}
+                      </td>
+                      <td className="py-3 px-4 max-w-xs truncate text-stone-200" title={t.items?.map((i) => i.serviceName).join(', ')}>
                         {t.items && t.items.length > 0 ? (
                           t.items.map((i) => i.serviceName).join(', ')
                         ) : (
@@ -526,23 +564,31 @@ export const TransactionsTab: React.FC<TransactionsTabProps> = ({
                         {formatRupiah(t.totalAmount)}
                       </td>
                       <td className="py-3 px-4 text-center">
-                        <div className="flex items-center justify-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => handleViewDetail(t)}
-                            className="p-1.5 rounded-lg bg-stone-900 border border-stone-800 hover:bg-blue-500/20 text-stone-400 hover:text-blue-400 transition-colors cursor-pointer"
-                            title="Lihat Detail"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handlePromptDelete(t)}
-                            className="p-1.5 rounded-lg bg-stone-900 border border-stone-800 hover:bg-rose-500/20 text-stone-400 hover:text-rose-400 transition-colors cursor-pointer"
-                            title="Hapus Transaksi"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                        <div className="flex items-center justify-center">
+                          <RowActionMenu
+                            itemId={`trx-desktop-${t.id}`}
+                            isOpen={openMenuId === `trx-desktop-${t.id}`}
+                            onToggle={setOpenMenuId}
+                            ariaLabel={`Aksi untuk transaksi ${t.invoiceNumber}`}
+                            items={[
+                              {
+                                label: 'Lihat Detail',
+                                icon: Eye,
+                                onClick: () => handleViewDetail(t),
+                              },
+                              {
+                                label: 'Salin No. Invoice',
+                                icon: Copy,
+                                onClick: () => void handleCopyInvoice(t.invoiceNumber),
+                              },
+                              {
+                                label: 'Hapus Transaksi',
+                                icon: Trash2,
+                                danger: true,
+                                onClick: () => handlePromptDelete(t),
+                              },
+                            ]}
+                          />
                         </div>
                       </td>
                     </tr>

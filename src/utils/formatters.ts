@@ -33,6 +33,17 @@ export function formatIDR(amount: number): string {
   }).format(amount);
 }
 
+/**
+ * Batasi panjang teks (nama pelanggan, layanan, dll) agar layout tidak rusak.
+ * Teks yang terpotong diberi akhiran "…".
+ */
+export function truncateChars(text: string | undefined | null, max: number): string {
+  const value = (text || '').trim();
+  if (!value) return '';
+  if (value.length <= max) return value;
+  return `${value.slice(0, Math.max(1, max - 1)).trimEnd()}…`;
+}
+
 export function formatDateIndonesian(dateString: string): string {
   try {
     const date = new Date(dateString);
