@@ -114,7 +114,7 @@ export const ServicesSection: React.FC<ServicesSectionProps> = ({
                 <span>+62 83826336104</span>
               </div>
               
-              <p className="text-[11px] text-stone-500 tracking-[0.25em] uppercase mt-1">
+              <p className="text-[11px] text-stone-400 tracking-[0.25em] uppercase mt-1">
                 EST.2024
               </p>
               

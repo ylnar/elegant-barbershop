@@ -20,6 +20,9 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="dns-prefetch" href="https://tysuzmawovhavchwatjb.supabase.co" />
+
+    <!-- LCP: pre-load hero background before JS/CSS executes -->
+    <link rel="preload" as="image" href="/images/hero-atmosphere.webp" fetchpriority="high" />
     
     <title>ELEGANT BARBERSHOP SOLOK — Tempat Pangkas Rambut Pria Profesional Sumatera Barat</title>
     
@@ -58,8 +61,12 @@
     <meta name="twitter:image" content="https://elegantbarbershop.solok.id/images/og-banner.jpg" />
     <meta name="twitter:image:alt" content="Suasana Dalam Elegant Barbershop Solok Sumatera Barat" />
 
-    <!-- Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700;800;900&family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,400;1,600&display=swap" rel="stylesheet" />
+    <!-- Fonts: dimuat non-blocking agar tidak menahan render (FCP) -->
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700;800;900&family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,400;1,600&display=swap" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700;800;900&family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,400;1,600&display=swap" media="print" onload="this.media='all'" />
+    <noscript>
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700;800;900&family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,400;1,600&display=swap" />
+    </noscript>
 
     <!-- Schema.org Structured Data (JSON-LD LocalBusiness / BarberShop) -->
     <script type="application/ld+json">

@@ -80,22 +80,22 @@ export const Footer: React.FC<FooterProps> = ({
 
           {/* Quick Links */}
           <div className="space-y-2.5">
-            <h4 className="text-xs font-semibold text-white uppercase tracking-wider text-[#D4AF37]">
+            <h3 className="text-xs font-semibold text-white uppercase tracking-wider text-[#D4AF37]">
               Menu
-            </h4>
-            <ul className="space-y-1.5 text-stone-400">
+            </h3>
+            <ul className="space-y-0.5 text-stone-400">
               <li>
-                <a href="#home" className="hover:text-white transition-colors">
+                <a href="#home" className="inline-block py-1 hover:text-white transition-colors">
                   Beranda
                 </a>
               </li>
               <li>
-                <a href="#services" className="hover:text-white transition-colors">
+                <a href="#services" className="inline-block py-1 hover:text-white transition-colors">
                   Price List
                 </a>
               </li>
               <li>
-                <a href="#location" className="hover:text-white transition-colors">
+                <a href="#location" className="inline-block py-1 hover:text-white transition-colors">
                   Lokasi
                 </a>
               </li>
@@ -104,9 +104,9 @@ export const Footer: React.FC<FooterProps> = ({
 
           {/* Operating Hours & Admin */}
           <div className="space-y-2.5">
-            <h4 className="text-xs font-semibold text-white uppercase tracking-wider text-[#D4AF37]">
+            <h3 className="text-xs font-semibold text-white uppercase tracking-wider text-[#D4AF37]">
               Info Outlet
-            </h4>
+            </h3>
             <div className="space-y-2 text-stone-400">
               <div>
                 <span className="text-stone-300 block">Jam Buka:</span>
@@ -119,7 +119,7 @@ export const Footer: React.FC<FooterProps> = ({
               <div className="pt-1 flex flex-col gap-1.5">
                 <button
                   onClick={onOpenAdmin}
-                  className="flex items-center gap-1 hover:text-[#D4AF37] transition-colors text-xs text-stone-400 hover:text-stone-200 cursor-pointer"
+                  className="flex items-center gap-1 py-1.5 hover:text-[#D4AF37] transition-colors text-xs text-stone-400 hover:text-stone-200 cursor-pointer"
                 >
                   <ShieldCheck className="w-3.5 h-3.5 text-[#D4AF37]" />
                   <span>Admin &amp; Kasir Portal</span>
@@ -128,7 +128,7 @@ export const Footer: React.FC<FooterProps> = ({
                 {onOpenSchemaModal && (
                   <button
                     onClick={onOpenSchemaModal}
-                    className="flex items-center gap-1 hover:text-[#D4AF37] transition-colors text-xs text-stone-500 hover:text-stone-300 cursor-pointer"
+                    className="flex items-center gap-1 py-1.5 hover:text-[#D4AF37] transition-colors text-xs text-stone-400 hover:text-stone-300 cursor-pointer"
                   >
                     <span>Struktur Database &amp; Status</span>
                   </button>
@@ -138,7 +138,7 @@ export const Footer: React.FC<FooterProps> = ({
           </div>
         </div>
 
-        <div className="mt-8 pt-4 border-t border-stone-800/80 flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-stone-500">
+        <div className="mt-8 pt-4 border-t border-stone-800/80 flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-stone-400">
           <div>
             © {new Date().getFullYear()} Elegant Barbershop Solok.
           </div>

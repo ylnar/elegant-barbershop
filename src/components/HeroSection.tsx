@@ -1,7 +1,9 @@
 import React from 'react';
 import { Store, ArrowRight, Clock, Scissors, MapPin, Calendar } from 'lucide-react';
 import { SystemSettings } from '../types';
-import heroInteriorImg from '../assets/images/atmosphere.webp';
+
+// Path statis publik agar bisa di-preload dari index.html (mempercepat LCP)
+const HERO_IMG = '/images/hero-atmosphere.webp';
 
 interface HeroSectionProps {
   settings: SystemSettings;
@@ -22,7 +24,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
       {/* Authentic Local Hero Background with Premium Dark Scrim for 100% Text Readability */}
       <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
         <img
-          src={heroInteriorImg}
+          src={HERO_IMG}
           alt="Suasana Ruang Pangkas Elegant Barbershop Solok Sumatera Barat"
           loading="eager"
           fetchPriority="high"

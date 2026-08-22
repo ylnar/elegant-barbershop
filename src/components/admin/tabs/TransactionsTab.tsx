@@ -27,7 +27,6 @@ import { ConfirmModal } from '../modals/ConfirmModal';
 import { RowActionMenu } from '../../ui/RowActionMenu';
 import { toast } from '../../ui/Toast';
 import { getLocalTodayStr, formatIDR, truncateChars } from '../../../utils/formatters';
-import * as XLSX from 'xlsx';
 
 interface TransactionsTabProps {
   services: Service[];
@@ -151,12 +150,14 @@ export const TransactionsTab: React.FC<TransactionsTabProps> = ({
     return filteredTransactions.slice(start, start + ITEMS_PER_PAGE);
   }, [filteredTransactions, currentPage]);
 
-  // Export to Excel
-  const handleExportExcel = useCallback(() => {
+  // Export to Excel — xlsx dimuat dynamic agar tidak membengkak bundle awal
+  const handleExportExcel = useCallback(async () => {
     if (filteredTransactions.length === 0) {
       toast.error('Tidak ada data untuk diekspor.');
       return;
     }
+
+    const XLSX = await import('xlsx');
 
     const exportData = filteredTransactions.map((t, idx) => ({
       'No.': idx + 1,
@@ -700,7 +701,7 @@ export const TransactionsTab: React.FC<TransactionsTabProps> = ({
         icon="download"
         onConfirm={() => {
           setExportConfirmOpen(false);
-          handleExportExcel();
+          void handleExportExcel();
         }}
         onClose={() => setExportConfirmOpen(false)}
       />

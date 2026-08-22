@@ -145,7 +145,7 @@ export const ReviewsSection: React.FC = () => {
                         <Star key={i} className="w-3.5 h-3.5 fill-[#D4AF37]" />
                       ))}
                     </div>
-                    <span className="text-[11px] text-stone-500">{rev.date}</span>
+                    <span className="text-[11px] text-stone-400">{rev.date}</span>
                   </div>
 
                   {/* Comment */}
@@ -188,20 +188,23 @@ export const ReviewsSection: React.FC = () => {
           </div>
         </div>
 
-        {/* Pagination Dots */}
-        <div className="flex items-center justify-center gap-1.5 mt-6">
+        {/* Pagination Dots — hit area diperbesar ≥24px untuk aksesibilitas sentuh */}
+        <div className="flex items-center justify-center gap-1 mt-6">
           {[...Array(totalPages)].map((_, idx) => (
             <button
               type="button"
               key={idx}
               onClick={() => setCurrentIndex(idx)}
-              aria-label={`Slide ${idx + 1}`}
-              className={`h-1.5 rounded-full transition-all duration-300 cursor-pointer ${
-                currentIndex === idx
-                  ? 'w-6 bg-[#D4AF37]'
-                  : 'w-1.5 bg-stone-700 hover:bg-stone-500'
-              }`}
-            />
+              aria-label={`Ke slide ${idx + 1}`}
+              aria-current={currentIndex === idx}
+              className="p-2 cursor-pointer"
+            >
+              <span
+                className={`block h-1.5 rounded-full transition-all duration-300 ${
+                  currentIndex === idx ? 'w-6 bg-[#D4AF37]' : 'w-3 bg-stone-500 hover:bg-stone-400'
+                }`}
+              />
+            </button>
           ))}
         </div>
       </div>

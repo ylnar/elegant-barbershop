@@ -570,6 +570,7 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                           <div className="relative">
                             <input
                               type="date"
+                              aria-label="Pilih tanggal kunjungan tertentu"
                               value={selectedDate}
                               min={todayStr}
                               onChange={(e) => setSelectedDate(e.target.value)}
@@ -587,7 +588,7 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                         <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
                           {timeSlots.length === 0 ? (
                             <div className="col-span-full text-center py-4">
-                              <span className="text-sm text-stone-500 italic">
+                              <span className="text-sm text-stone-400 italic">
                                 Semua jam hari ini sudah lewat. Silakan pilih tanggal lain.
                               </span>
                             </div>
@@ -645,36 +646,40 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
                         <div className="space-y-1.5">
-                          <label className="text-xs font-bold text-stone-300">
+                          <label htmlFor="booking-customer-name" className="text-xs font-bold text-stone-300">
                             Nama Lengkap <span className="text-[#D4AF37]">*</span>
                           </label>
                           <div className="relative">
                             <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-500" />
                             <input
+                              id="booking-customer-name"
                               type="text"
                               required
+                              autoComplete="name"
                               placeholder="Contoh: Rian Pratama"
                               value={customerName}
                               onChange={(e) => setCustomerName(e.target.value)}
-                              className="w-full pl-10 pr-4 py-3 rounded-xl bg-[#0E0E14] border border-stone-800 text-stone-100 text-xs sm:text-sm focus:outline-none focus:border-[#D4AF37] transition-all placeholder:text-stone-600"
+                              className="w-full pl-10 pr-4 py-3 rounded-xl bg-[#0E0E14] border border-stone-800 text-stone-100 text-xs sm:text-sm focus:outline-none focus:border-[#D4AF37] transition-all placeholder:text-stone-400"
                             />
                           </div>
                         </div>
 
                         <div className="space-y-1.5">
-                          <label className="text-xs font-bold text-stone-300">
+                          <label htmlFor="booking-customer-phone" className="text-xs font-bold text-stone-300">
                             Nomor WhatsApp <span className="text-[#D4AF37]">*</span>
                           </label>
                           <div className="relative">
                             <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-500" />
                             <input
+                              id="booking-customer-phone"
                               type="tel"
                               required
                               inputMode="numeric"
+                              autoComplete="tel"
                               placeholder="Contoh: 081234567890"
                               value={customerPhone}
                               onChange={(e) => setCustomerPhone(sanitizePhoneInput(e.target.value))}
-                              className={`w-full pl-10 pr-4 py-3 rounded-xl bg-[#0E0E14] border text-stone-100 text-xs sm:text-sm focus:outline-none transition-all placeholder:text-stone-600 ${
+                              className={`w-full pl-10 pr-4 py-3 rounded-xl bg-[#0E0E14] border text-stone-100 text-xs sm:text-sm focus:outline-none transition-all placeholder:text-stone-400 ${
                                 customerPhone && (!isValidWhatsAppNumber(customerPhone) || duplicatePhoneBooking)
                                   ? 'border-rose-500/60 focus:border-rose-500'
                                   : 'border-stone-800 focus:border-[#D4AF37]'
@@ -821,10 +826,11 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                       <input
                         type="text"
                         required
+                        aria-label="Kode booking atau nomor WhatsApp"
                         placeholder="Ketik Kode Booking atau Nomor WhatsApp..."
                         value={searchCodeOrPhone}
                         onChange={(e) => setSearchCodeOrPhone(e.target.value)}
-                        className="w-full pl-10 pr-4 py-3 rounded-xl bg-[#0E0E14] border border-stone-800 text-stone-100 text-xs sm:text-sm focus:outline-none focus:border-[#D4AF37]"
+                        className="w-full pl-10 pr-4 py-3 rounded-xl bg-[#0E0E14] border border-stone-800 text-stone-100 text-xs sm:text-sm focus:outline-none focus:border-[#D4AF37] placeholder:text-stone-400"
                       />
                     </div>
 

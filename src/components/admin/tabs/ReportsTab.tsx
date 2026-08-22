@@ -4,7 +4,6 @@ import { formatIDR } from '../../../utils/formatters';
 import { TrendingUp, DollarSign, CreditCard, Users, Scissors, Download, Calendar } from 'lucide-react';
 import { toast } from '../../ui/Toast';
 import { ConfirmModal } from '../modals/ConfirmModal';
-import * as XLSX from 'xlsx';
 
 interface ReportsTabProps {
   bookings: Booking[];
@@ -39,13 +38,14 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({ bookings, services, tran
 
   const averageBasket = transactions.length > 0 ? Math.round(displayTotalRevenue / transactions.length) : 45000;
 
-  // Export full report to Excel
-  const handleExportReport = useCallback(() => {
+  // Export full report to Excel — xlsx dimuat dynamic agar tidak membengkak bundle awal
+  const handleExportReport = useCallback(async () => {
     if (transactions.length === 0 && bookings.length === 0) {
       toast.error('Tidak ada data laporan untuk diekspor.');
       return;
     }
 
+    const XLSX = await import('xlsx');
     const wb = XLSX.utils.book_new();
 
     // Sheet 1: Summary KPIs
@@ -203,7 +203,7 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({ bookings, services, tran
         icon="download"
         onConfirm={() => {
           setExportConfirmOpen(false);
-          handleExportReport();
+          void handleExportReport();
         }}
         onClose={() => setExportConfirmOpen(false)}
       />

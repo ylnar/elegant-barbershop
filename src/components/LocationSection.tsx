@@ -31,7 +31,7 @@ export const LocationSection: React.FC<LocationSectionProps> = ({ settings }) =>
               <div className="flex items-start gap-3.5 p-4 rounded-xl bg-[#14141C] border border-stone-800">
                 <MapPin className="w-4 h-4 text-[#D4AF37] shrink-0 mt-1" />
                 <div>
-                  <h4 className="text-xs font-semibold text-white">Alamat Lengkap</h4>
+                  <h3 className="text-xs font-semibold text-white">Alamat Lengkap</h3>
                   <p className="text-xs text-stone-300 mt-0.5">{settings.address}</p>
                 </div>
               </div>
@@ -39,7 +39,7 @@ export const LocationSection: React.FC<LocationSectionProps> = ({ settings }) =>
               <div className="flex items-start gap-3.5 p-4 rounded-xl bg-[#14141C] border border-stone-800">
                 <Clock className="w-4 h-4 text-[#D4AF37] shrink-0 mt-1" />
                 <div>
-                  <h4 className="text-xs font-semibold text-white">Jam Operasional</h4>
+                  <h3 className="text-xs font-semibold text-white">Jam Operasional</h3>
                   <p className="text-xs text-stone-300 mt-0.5">
                     Buka Setiap Hari: <span className="text-emerald-400 font-semibold">{settings.openTime} - {settings.closeTime} WIB</span>
                   </p>
@@ -49,7 +49,7 @@ export const LocationSection: React.FC<LocationSectionProps> = ({ settings }) =>
               <div className="flex items-start gap-3.5 p-4 rounded-xl bg-[#14141C] border border-stone-800">
                 <Phone className="w-4 h-4 text-[#D4AF37] shrink-0 mt-1" />
                 <div>
-                  <h4 className="text-xs font-semibold text-white">Kontak WhatsApp</h4>
+                  <h3 className="text-xs font-semibold text-white">Kontak WhatsApp</h3>
                   <p className="text-xs text-stone-300 mt-0.5">{settings.phone}</p>
                 </div>
               </div>

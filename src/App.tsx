@@ -102,36 +102,38 @@ export default function App() {
       />
 
       {/* 2. Hero Section */}
-      <HeroSection
-        settings={settings}
-        onOpenBooking={handleScrollToBooking}
-      />
+      <main id="main-content">
+        <HeroSection
+          settings={settings}
+          onOpenBooking={handleScrollToBooking}
+        />
 
-      {/* 3. Services & Menu */}
-      <ServicesSection
-        services={services}
-        settings={settings}
-        onSelectServiceAndBook={handleSelectServiceAndBook}
-      />
+        {/* 3. Services & Menu */}
+        <ServicesSection
+          services={services}
+          settings={settings}
+          onSelectServiceAndBook={handleSelectServiceAndBook}
+        />
 
 
-      {/* 5. Dynamic Booking Engine (Reactive to Master Switch) */}
-      <BookingSection
-        settings={settings}
-        services={services}
-        barbers={barbers}
-        bookings={bookings}
-        selectedServiceId={selectedServiceForBooking}
-        onSelectServiceId={setSelectedServiceForBooking}
-        onBookingSuccess={handleBookingSuccess}
-        onTrackTicket={(booking) => setTicketModalBooking(booking)}
-      />
+        {/* 5. Dynamic Booking Engine (Reactive to Master Switch) */}
+        <BookingSection
+          settings={settings}
+          services={services}
+          barbers={barbers}
+          bookings={bookings}
+          selectedServiceId={selectedServiceForBooking}
+          onSelectServiceId={setSelectedServiceForBooking}
+          onBookingSuccess={handleBookingSuccess}
+          onTrackTicket={(booking) => setTicketModalBooking(booking)}
+        />
 
-      {/* 6. Reviews & Ratings */}
-      <ReviewsSection />
+        {/* 6. Reviews & Ratings */}
+        <ReviewsSection />
 
-      {/* 7. Location & Operating Hours */}
-      <LocationSection settings={settings} />
+        {/* 7. Location & Operating Hours */}
+        <LocationSection settings={settings} />
+      </main>
 
       {/* 8. Footer */}
       <Footer
