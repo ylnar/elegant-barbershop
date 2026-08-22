@@ -5,34 +5,18 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
 let supabaseInstance: SupabaseClient | null = null;
-let directConnectionValid: boolean | null = null; // null = not tested yet
 
 /**
- * Check if the anon key is a valid JWT (starts with eyJ).
- * Many Supabase setups use JWT tokens. If the key doesn't look like a JWT,
- * we skip direct client connections and use server API instead.
+ * Check if the Supabase client is properly configured
  */
-const isAnonKeyValid = (): boolean => {
-  if (!supabaseAnonKey) return false;
-  // Valid Supabase anon keys are JWT tokens starting with 'eyJ'
-  // Keys like 'sb_publishable_...' are NOT valid for PostgREST API
-  return supabaseAnonKey.startsWith('eyJ');
-};
-
 export const isSupabaseConfigured = (): boolean => {
   return Boolean(supabaseUrl && supabaseAnonKey && supabaseUrl.startsWith('http'));
 };
 
 /**
- * Get Supabase client - only create if anon key is a valid JWT.
- * Returns null if key format is invalid (e.g. sb_publishable_*).
+ * Get or create Supabase client singleton
  */
 export const getSupabaseClient = (): SupabaseClient | null => {
-  // If anon key is not a valid JWT, don't even try
-  if (!isAnonKeyValid()) {
-    return null;
-  }
-
   if (!isSupabaseConfigured()) {
     return null;
   }
@@ -44,8 +28,14 @@ export const getSupabaseClient = (): SupabaseClient | null => {
           persistSession: false,
           autoRefreshToken: false,
         },
+        realtime: {
+          params: {
+            eventsPerSecond: 10,
+          },
+        },
       });
-    } catch {
+    } catch (err) {
+      console.error('[Supabase Client] Failed to create client:', err);
       return null;
     }
   }
@@ -53,24 +43,12 @@ export const getSupabaseClient = (): SupabaseClient | null => {
   return supabaseInstance;
 };
 
+/**
+ * Check Supabase connection status
+ */
 export const checkSupabaseConnection = async (): Promise<{ connected: boolean; message: string }> => {
   const client = getSupabaseClient();
   if (!client) {
-    // Try via server API instead
-    try {
-      const res = await fetch('/api/services');
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) {
-          return {
-            connected: true,
-            message: 'Terhubung ke database via Server API (mode aman)!',
-          };
-        }
-      }
-    } catch {
-      // ignore
-    }
     return {
       connected: false,
       message: 'Database belum terkonfigurasi. Pastikan server berjalan.',
@@ -82,109 +60,119 @@ export const checkSupabaseConnection = async (): Promise<{ connected: boolean; m
     if (error) {
       return {
         connected: false,
-        message: `Koneksi langsung error: ${error.message}. Menggunakan mode Server API.`,
+        message: `Koneksi error: ${error.message}`,
       };
     }
     return {
       connected: true,
-      message: 'Berhasil terhubung langsung ke Supabase!',
+      message: 'Berhasil terhubung ke Supabase!',
     };
   } catch {
     return {
       connected: false,
-      message: 'Gagal menghubungi Supabase. Menggunakan mode Server API.',
+      message: 'Gagal menghubungi Supabase.',
     };
   }
 };
 
 /**
- * Helper: fetch from server API with timeout
+ * Live fetchers - fetch data directly from Supabase
+ * Filters out soft-deleted records (is_deleted = true)
  */
-const apiFetch = async <T>(path: string, timeout = 10000): Promise<T | null> => {
+export const fetchBarbersLive = async (): Promise<Barber[] | null> => {
+  const client = getSupabaseClient();
+  if (!client) return null;
+
   try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeout);
-    const res = await fetch(path, { signal: controller.signal });
-    clearTimeout(timer);
-    if (!res.ok) return null;
-    const data = await res.json();
-    return Array.isArray(data) && data.length > 0 ? data as T : null;
-  } catch {
+    const { data, error } = await client
+      .from('barbers')
+      .select('*')
+      .eq('is_deleted', false);
+
+    if (error) {
+      console.error('[Supabase] fetchBarbersLive error:', error.message);
+      return null;
+    }
+
+    if (!data || data.length === 0) return null;
+
+    return data.map(mapBarber);
+  } catch (err) {
+    console.error('[Supabase] fetchBarbersLive exception:', err);
     return null;
   }
 };
 
-/**
- * Live fetchers - try direct Supabase first, fallback to server API.
- * If anon key is invalid, skip directly to server API.
- */
-export const fetchBarbersLive = async (): Promise<Barber[] | null> => {
-  // Try direct Supabase (only if valid JWT key)
-  const client = getSupabaseClient();
-  if (client) {
-    try {
-      const { data, error } = await client.from('barbers').select('*');
-      if (!error && data && data.length > 0) {
-        return data.map(mapBarber);
-      }
-    } catch {
-      // Fall through
-    }
-  }
-
-  // Fallback: server API (already returns camelCase app types)
-  return apiFetch<any[]>('/api/barbers');
-};
-
 export const fetchServicesLive = async (): Promise<Service[] | null> => {
   const client = getSupabaseClient();
-  if (client) {
-    try {
-      const { data, error } = await client.from('services').select('*');
-      if (!error && data && data.length > 0) {
-        return data.map(mapService);
-      }
-    } catch {
-      // Fall through
-    }
-  }
+  if (!client) return null;
 
-  // Fallback: server API (already returns camelCase app types)
-  return apiFetch<any[]>('/api/services');
+  try {
+    const { data, error } = await client
+      .from('services')
+      .select('*')
+      .eq('is_deleted', false);
+
+    if (error) {
+      console.error('[Supabase] fetchServicesLive error:', error.message);
+      return null;
+    }
+
+    if (!data || data.length === 0) return null;
+
+    return data.map(mapService);
+  } catch (err) {
+    console.error('[Supabase] fetchServicesLive exception:', err);
+    return null;
+  }
 };
 
 export const fetchBookingsLive = async (): Promise<Booking[] | null> => {
   const client = getSupabaseClient();
-  if (client) {
-    try {
-      const { data, error } = await client.from('bookings').select('*');
-      if (!error && data && data.length > 0) {
-        return data.map(mapBooking);
-      }
-    } catch {
-      // Fall through
-    }
-  }
+  if (!client) return null;
 
-  // Fallback: server API (already returns camelCase app types)
-  return apiFetch<any[]>('/api/bookings');
+  try {
+    const { data, error } = await client
+      .from('bookings')
+      .select('*')
+      .eq('is_deleted', false);
+
+    if (error) {
+      console.error('[Supabase] fetchBookingsLive error:', error.message);
+      return null;
+    }
+
+    if (!data || data.length === 0) return null;
+
+    return data.map(mapBooking);
+  } catch (err) {
+    console.error('[Supabase] fetchBookingsLive exception:', err);
+    return null;
+  }
 };
 
 export const fetchTransactionsLive = async (): Promise<Transaction[] | null> => {
   const client = getSupabaseClient();
-  if (client) {
-    try {
-      const { data, error } = await client.from('transactions').select('*');
-      if (!error && data && data.length > 0) {
-        return data.map(mapTransaction);
-      }
-    } catch {
-      // Fall through
-    }
-  }
+  if (!client) return null;
 
-  // Fallback: server API (already returns camelCase app types)
-  return apiFetch<any[]>('/api/transactions');
+  try {
+    const { data, error } = await client
+      .from('transactions')
+      .select('*')
+      .eq('is_deleted', false);
+
+    if (error) {
+      console.error('[Supabase] fetchTransactionsLive error:', error.message);
+      return null;
+    }
+
+    if (!data || data.length === 0) return null;
+
+    return data.map(mapTransaction);
+  } catch (err) {
+    console.error('[Supabase] fetchTransactionsLive exception:', err);
+    return null;
+  }
 };
 
 /**
@@ -257,22 +245,60 @@ function mapTransaction(t: any): Transaction {
 }
 
 /**
- * Subscribe to realtime PostgreSQL changes (only works with valid JWT key)
+ * Subscribe to realtime PostgreSQL changes
+ * 
+ * IMPORTANT: This requires:
+ * 1. REPLICA IDENTITY FULL on the table
+ * 2. Table added to supabase_realtime publication
+ * 3. Proper RLS policies (or RLS disabled for the table)
  */
 export const subscribeToTable = (
   tableName: 'bookings' | 'transactions' | 'services' | 'barbers' | 'categories' | 'system_settings',
   callback: (payload: { eventType: 'INSERT' | 'UPDATE' | 'DELETE' | '*'; new: any; old: any }) => void
 ) => {
   const client = getSupabaseClient();
-  if (!client) return null;
+  if (!client) {
+    console.warn(`[Realtime] Supabase not configured, cannot subscribe to ${tableName}`);
+    return null;
+  }
 
   try {
+    const channelName = `realtime_${tableName}_${Date.now()}`;
+    
     const channel = client
-      .channel(`realtime_${tableName}_${Date.now()}_${Math.random()}`)
+      .channel(channelName)
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: tableName },
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: tableName 
+        },
         (payload) => {
+          console.log(`[Realtime] ${tableName}: ${payload.eventType}`, payload);
+          
+          // Skip soft-deleted records in DELETE events
+          if (payload.eventType === 'DELETE') {
+            callback({
+              eventType: 'DELETE',
+              new: null,
+              old: payload.old,
+            });
+            return;
+          }
+          
+          // For INSERT/UPDATE, check if record is soft-deleted
+          const record = payload.new as any;
+          if (record && record.is_deleted === true) {
+            // Treat soft-delete as DELETE event
+            callback({
+              eventType: 'DELETE',
+              new: null,
+              old: record,
+            });
+            return;
+          }
+          
           callback({
             eventType: payload.eventType as any,
             new: payload.new,
@@ -280,10 +306,17 @@ export const subscribeToTable = (
           });
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log(`[Realtime] ✅ Subscribed to ${tableName}`);
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error(`[Realtime] ❌ Channel error for ${tableName}`);
+        }
+      });
 
     return channel;
-  } catch {
+  } catch (err) {
+    console.error(`[Realtime] Failed to subscribe to ${tableName}:`, err);
     return null;
   }
 };

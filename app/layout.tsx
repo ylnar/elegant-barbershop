@@ -65,6 +65,8 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 5,
+  userScalable: true,
+  viewportFit: 'cover',
 };
 
 const jsonLd = {
@@ -122,6 +124,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <meta name="geo.placename" content="Kota Solok, Sumatera Barat" />
         <meta name="geo.position" content="-0.7925;100.6586" />
         <meta name="ICBM" content="-0.7925, 100.6586" />
+
+        {/* PWA Manifest & Icons */}
+        <link rel="manifest" href="/site.webmanifest" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 
         {/* Performance Hints */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />

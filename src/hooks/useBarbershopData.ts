@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { SystemSettings, Service, Barber, Booking, Transaction } from '../types';
 import { api } from '../services/api';
 import { subscribeToTable, isSupabaseConfigured } from '../services/supabaseClient';
@@ -11,6 +11,9 @@ export function useBarbershopData() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Track realtime subscription status
+  const subscriptionsRef = useRef<Array<{ unsubscribe: () => void }>>([]);
 
   const loadData = useCallback(async () => {
     try {
@@ -55,36 +58,61 @@ export function useBarbershopData() {
       };
     }
 
+    // Cleanup previous subscriptions
+    subscriptionsRef.current.forEach((sub) => {
+      try {
+        sub.unsubscribe();
+      } catch {
+        // ignore
+      }
+    });
+    subscriptionsRef.current = [];
+
     // Listen to live booking additions or status changes
-    const bookingsSub = subscribeToTable('bookings', () => {
+    const bookingsSub = subscribeToTable('bookings', (payload) => {
+      console.log('[Realtime] Bookings event:', payload.eventType);
       api.getBookings().then((data) => setBookings(data)).catch(() => {});
     });
 
     // Listen to live transactions / POS checkout
-    const transactionsSub = subscribeToTable('transactions', () => {
+    const transactionsSub = subscribeToTable('transactions', (payload) => {
+      console.log('[Realtime] Transactions event:', payload.eventType);
       api.getTransactions().then((data) => setTransactions(data)).catch(() => {});
     });
 
     // Listen to live service/barber updates
-    const servicesSub = subscribeToTable('services', () => {
+    const servicesSub = subscribeToTable('services', (payload) => {
+      console.log('[Realtime] Services event:', payload.eventType);
       api.getServices().then((data) => setServices(data)).catch(() => {});
     });
 
-    const barbersSub = subscribeToTable('barbers', () => {
+    const barbersSub = subscribeToTable('barbers', (payload) => {
+      console.log('[Realtime] Barbers event:', payload.eventType);
       api.getBarbers().then((data) => setBarbers(data)).catch(() => {});
     });
 
-    const settingsSub = subscribeToTable('system_settings', () => {
+    const settingsSub = subscribeToTable('system_settings', (payload) => {
+      console.log('[Realtime] Settings event:', payload.eventType);
       api.getSettings().then((data) => setSettings(data)).catch(() => {});
     });
 
+    // Store subscriptions for cleanup
+    if (bookingsSub) subscriptionsRef.current.push(bookingsSub);
+    if (transactionsSub) subscriptionsRef.current.push(transactionsSub);
+    if (servicesSub) subscriptionsRef.current.push(servicesSub);
+    if (barbersSub) subscriptionsRef.current.push(barbersSub);
+    if (settingsSub) subscriptionsRef.current.push(settingsSub);
+
     return () => {
       window.removeEventListener('focus', handleFocus);
-      bookingsSub?.unsubscribe();
-      transactionsSub?.unsubscribe();
-      servicesSub?.unsubscribe();
-      barbersSub?.unsubscribe();
-      settingsSub?.unsubscribe();
+      subscriptionsRef.current.forEach((sub) => {
+        try {
+          sub.unsubscribe();
+        } catch {
+          // ignore
+        }
+      });
+      subscriptionsRef.current = [];
     };
   }, [loadData]);
 
@@ -114,4 +142,3 @@ export function useBarbershopData() {
     setTransactions,
   };
 }
-

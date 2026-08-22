@@ -5,6 +5,10 @@
     --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     --font-serif: 'Playfair Display', Georgia, serif;
     --font-brand: 'Cinzel', serif;
+    --sat: env(safe-area-inset-top);
+    --sab: env(safe-area-inset-bottom);
+    --sal: env(safe-area-inset-left);
+    --sar: env(safe-area-inset-right);
   }
 
   html {
@@ -15,6 +19,7 @@
     text-rendering: optimizeLegibility;
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
+    overscroll-behavior: none;
   }
 
   body {
@@ -22,6 +27,18 @@
     color: #F5F5F7;
     background-color: #0A0A0E;
     line-height: 1.6;
+    min-height: 100dvh;
+    padding-top: var(--sat);
+    padding-left: var(--sal);
+    padding-right: var(--sar);
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* PWA Standalone Mode — native app feel */
+  @media (display-mode: standalone) {
+    body {
+      overscroll-behavior-y: contain;
+    }
   }
 
   /* Refined Display & Brand Typography */
@@ -76,6 +93,26 @@
     font-size: 16px !important;
     line-height: 1.5 !important;
   }
+}
+
+/* ── PWA Standalone Safe Area Helpers ─────────────────────────────────────
+   For any element that needs explicit safe area padding in standalone PWA */
+.safe-area-top {
+  padding-top: env(safe-area-inset-top);
+}
+
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.safe-area-inset-top {
+  height: env(safe-area-inset-top);
+  min-height: env(safe-area-inset-top);
+}
+
+.safe-area-inset-bottom {
+  height: env(safe-area-inset-bottom);
+  min-height: env(safe-area-inset-bottom);
 }
 
 /* Hilangkan jeda & zoom tak sengaja akibat double-tap di elemen interaktif */

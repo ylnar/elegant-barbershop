@@ -33,9 +33,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   };
 
   return (
-    <header className="sticky top-0 z-40 w-full bg-[#0D0D12]/95 backdrop-blur-md border-b border-[#1E1E28]">
+    <header className="sticky z-40 w-full bg-[#0D0D12]/95 backdrop-blur-md border-b border-[#1E1E28]" style={{ top: 'env(safe-area-inset-top, 0px)' }}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-20">
+        <div className="flex items-center justify-between h-16 sm:h-20">
           {/* Brand Logo & Solok Identity */}
           <a
             href="#home"
@@ -147,7 +147,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
       {/* Mobile Drawer Navigation */}
       {mobileMenuOpen && (
-        <div className="lg:hidden bg-[#111116] border-b border-[#242430] px-4 pt-3 pb-6 space-y-3 shadow-2xl max-h-[calc(100vh-5rem)] overflow-y-auto">
+        <div className="lg:hidden bg-[#111116] border-b border-[#242430] px-4 pt-3 pb-6 space-y-3 shadow-2xl max-h-[calc(100dvh-4.5rem-env(safe-area-inset-top))] overflow-y-auto">
           <div className="space-y-1">
             <button
               onClick={() => scrollToSection('services')}

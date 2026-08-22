@@ -149,7 +149,7 @@ export const Footer: React.FC<FooterProps> = ({
       </div>
 
       {/* Digitalisasi UMKM Sub-Footer Banner */}
-      <div className="bg-[#040407] border-t border-stone-800/80 py-4 px-4 sm:px-6 lg:px-8">
+      <div className="bg-[#040407] border-t border-stone-800/80 py-4 px-4 sm:px-6 lg:px-8" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
           <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-3">
             <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-[#D4AF37]/15 border border-[#D4AF37]/30 text-[#D4AF37] text-[10px] font-bold tracking-wider uppercase">
