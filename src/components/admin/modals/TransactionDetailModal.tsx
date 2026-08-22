@@ -70,8 +70,6 @@ const getPaymentLabel = (method: string) => {
       return 'QRIS';
     case 'transfer':
       return 'Transfer Bank';
-    case 'debit':
-      return 'Kartu Debit';
     default:
       return method.toUpperCase();
   }

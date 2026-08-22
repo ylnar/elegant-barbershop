@@ -7,7 +7,6 @@ import {
   Banknote,
   QrCode,
   Building,
-  CreditCard,
   User,
   Scissors,
   Clock,
@@ -24,7 +23,6 @@ const PAYMENT_METHODS: { value: PaymentMethod; label: string; icon: typeof Bankn
   { value: 'cash', label: 'Tunai', icon: Banknote, color: 'border-amber-500/50 bg-amber-500/10 text-amber-300' },
   { value: 'qris', label: 'QRIS', icon: QrCode, color: 'border-blue-500/50 bg-blue-500/10 text-blue-300' },
   { value: 'transfer', label: 'Transfer', icon: Building, color: 'border-purple-500/50 bg-purple-500/10 text-purple-300' },
-  { value: 'debit', label: 'Debit', icon: CreditCard, color: 'border-emerald-500/50 bg-emerald-500/10 text-emerald-300' },
 ];
 
 export const CompletionPaymentModal: React.FC<CompletionPaymentModalProps> = ({
@@ -55,6 +53,20 @@ export const CompletionPaymentModal: React.FC<CompletionPaymentModalProps> = ({
     return amountPaid >= booking.totalAmount;
   }, [amountPaid, booking]);
 
+  // Quick-fill amount buttons for cash
+  const quickAmounts = useMemo(() => {
+    if (!booking) return [];
+    const total = booking.totalAmount;
+    const amounts: number[] = [total];
+    // Add common round amounts above total
+    if (total <= 50000) amounts.push(50000, 100000);
+    else if (total <= 100000) amounts.push(100000, 200000);
+    else if (total <= 200000) amounts.push(200000, 500000);
+    else if (total <= 500000) amounts.push(500000);
+    // Deduplicate and sort
+    return [...new Set(amounts)].sort((a, b) => a - b);
+  }, [booking?.totalAmount]);
+
   if (!isOpen || !booking) return null;
 
   const handleConfirm = async () => {
@@ -67,19 +79,6 @@ export const CompletionPaymentModal: React.FC<CompletionPaymentModalProps> = ({
       setIsSubmitting(false);
     }
   };
-
-  // Quick-fill amount buttons for cash
-  const quickAmounts = useMemo(() => {
-    const total = booking.totalAmount;
-    const amounts: number[] = [total];
-    // Add common round amounts above total
-    if (total <= 50000) amounts.push(50000, 100000);
-    else if (total <= 100000) amounts.push(100000, 200000);
-    else if (total <= 200000) amounts.push(200000, 500000);
-    else if (total <= 500000) amounts.push(500000);
-    // Deduplicate and sort
-    return [...new Set(amounts)].sort((a, b) => a - b);
-  }, [booking.totalAmount]);
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs animate-in fade-in duration-200">

@@ -152,7 +152,7 @@ CREATE TABLE IF NOT EXISTS public.transactions (
     discount NUMERIC(12, 2) DEFAULT 0 NOT NULL CHECK (discount >= 0),
     tax NUMERIC(12, 2) DEFAULT 0 NOT NULL CHECK (tax >= 0),
     total_amount NUMERIC(12, 2) NOT NULL CHECK (total_amount >= 0),
-    payment_method VARCHAR(30) NOT NULL CHECK (payment_method IN ('cash', 'qris', 'transfer', 'debit')),
+    payment_method VARCHAR(30) NOT NULL CHECK (payment_method IN ('cash', 'qris', 'transfer')),
     payment_status VARCHAR(30) DEFAULT 'paid' NOT NULL CHECK (payment_status IN ('paid', 'pending', 'refunded')),
     amount_paid NUMERIC(12, 2) DEFAULT 0 NOT NULL CHECK (amount_paid >= 0),
     change_amount NUMERIC(12, 2) DEFAULT 0 NOT NULL CHECK (change_amount >= 0),
@@ -380,7 +380,7 @@ BEGIN
         COALESCE(SUM(total_amount), 0)::NUMERIC AS total_omzet,
         COALESCE(SUM(CASE WHEN payment_method = 'cash' THEN total_amount ELSE 0 END), 0)::NUMERIC AS cash_omzet,
         COALESCE(SUM(CASE WHEN payment_method = 'qris' THEN total_amount ELSE 0 END), 0)::NUMERIC AS qris_omzet,
-        COALESCE(SUM(CASE WHEN payment_method IN ('transfer', 'debit') THEN total_amount ELSE 0 END), 0)::NUMERIC AS transfer_omzet,
+        COALESCE(SUM(CASE WHEN payment_method = 'transfer' THEN total_amount ELSE 0 END), 0)::NUMERIC AS transfer_omzet,
         COALESCE(AVG(total_amount), 0)::NUMERIC AS avg_ticket_size
     FROM public.transactions
     WHERE DATE(created_at AT TIME ZONE 'Asia/Jakarta') = p_date;

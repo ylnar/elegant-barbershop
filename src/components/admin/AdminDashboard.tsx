@@ -115,20 +115,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
   };
 
-  const handleUpdateQueue = async (delta: number) => {
-    try {
-      const newQueue = Math.max(0, settings.currentWalkInQueue + delta);
-      const newWait = newQueue * 12 + (newQueue > 0 ? 5 : 0);
-      await api.updateSettings({
-        currentWalkInQueue: newQueue,
-        estimatedWalkInWaitMinutes: newWait,
-      });
-      await onRefreshData();
-    } catch (err) {
-      console.error('Error updating walk-in queue:', err);
-    }
-  };
-
   // Service CRUD
   const handleOpenServiceModal = (srv?: Service) => {
     setEditingService(srv || null);
@@ -628,7 +614,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 settings={settings}
                 switchFeedback={switchFeedback}
                 onToggleMasterSwitch={handleToggleMasterSwitch}
-                onUpdateQueue={handleUpdateQueue}
                 onOpenWalkInModal={() => setWalkInModalOpen(true)}
               />
             )}

@@ -154,7 +154,7 @@ CREATE TABLE IF NOT EXISTS public.transactions (
     discount NUMERIC(12, 2) DEFAULT 0 NOT NULL CHECK (discount >= 0),
     tax NUMERIC(12, 2) DEFAULT 0 NOT NULL CHECK (tax >= 0),
     total_amount NUMERIC(12, 2) NOT NULL CHECK (total_amount >= 0),
-    payment_method VARCHAR(30) NOT NULL CHECK (payment_method IN ('cash', 'qris', 'transfer', 'debit')),
+    payment_method VARCHAR(30) NOT NULL CHECK (payment_method IN ('cash', 'qris', 'transfer')),
     payment_status VARCHAR(30) DEFAULT 'paid' NOT NULL CHECK (payment_status IN ('paid', 'pending', 'refunded')),
     amount_paid NUMERIC(12, 2) DEFAULT 0 NOT NULL CHECK (amount_paid >= 0),
     change_amount NUMERIC(12, 2) DEFAULT 0 NOT NULL CHECK (change_amount >= 0),

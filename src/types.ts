@@ -21,7 +21,7 @@ export interface Barber {
 
 export type BookingStatus = 'pending' | 'confirmed' | 'in_service' | 'completed' | 'cancelled';
 
-export type PaymentMethod = 'cash' | 'qris' | 'transfer' | 'debit';
+export type PaymentMethod = 'cash' | 'qris' | 'transfer';
 
 export interface TransactionItem {
   serviceId: string;

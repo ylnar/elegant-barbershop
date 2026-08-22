@@ -62,7 +62,7 @@ export const transactionsService = {
     subtotal: number;
     discount?: number;
     totalAmount: number;
-    paymentMethod: 'cash' | 'qris' | 'transfer' | 'debit';
+    paymentMethod: 'cash' | 'qris' | 'transfer';
     amountPaid: number;
     changeAmount: number;
     notes?: string;

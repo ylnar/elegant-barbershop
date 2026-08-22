@@ -330,7 +330,7 @@ export const DATABASE_SCHEMA_BLUEPRINT: SchemaTable[] = [
       { name: 'subtotal', type: 'NUMERIC(12, 2)', nullable: false, description: 'Subtotal harga layanan' },
       { name: 'discount', type: 'NUMERIC(12, 2)', nullable: false, defaultVal: '0', description: 'Potongan diskon promo' },
       { name: 'total_amount', type: 'NUMERIC(12, 2)', nullable: false, description: 'Total akhir yang wajib dibayar' },
-      { name: 'payment_method', type: 'VARCHAR(30)', nullable: false, description: 'Metode: cash, qris, transfer, debit' },
+      { name: 'payment_method', type: 'VARCHAR(30)', nullable: false, description: 'Metode: cash, qris, transfer' },
       { name: 'amount_paid', type: 'NUMERIC(12, 2)', nullable: false, defaultVal: '0', description: 'Nominal uang yang diserahkan' },
       { name: 'change_amount', type: 'NUMERIC(12, 2)', nullable: false, defaultVal: '0', description: 'Uang kembalian pelanggan' },
       { name: 'items', type: 'JSONB', nullable: false, defaultVal: '\'[]\'::JSONB', description: 'Snapshot data item layanan' },

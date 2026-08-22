@@ -6,7 +6,6 @@ interface MasterSwitchTabProps {
   settings: SystemSettings;
   switchFeedback: string | null;
   onToggleMasterSwitch: () => void;
-  onUpdateQueue: (delta: number) => void;
   onOpenWalkInModal: () => void;
 }
 
@@ -14,7 +13,6 @@ export const MasterSwitchTab: React.FC<MasterSwitchTabProps> = ({
   settings,
   switchFeedback,
   onToggleMasterSwitch,
-  onUpdateQueue,
   onOpenWalkInModal,
 }) => {
   return (
@@ -89,59 +87,14 @@ export const MasterSwitchTab: React.FC<MasterSwitchTabProps> = ({
         </div>
       </div>
 
-      {/* Walk-In Queue Manager Card */}
-      <div className="p-8 rounded-3xl bg-[#14141E] border border-stone-800 shadow-2xl">
-        <h3 className="text-lg font-bold text-white font-serif mb-2">
-          Manajemen Antrean Walk-in Live
-        </h3>
-        <p className="text-xs text-stone-400 mb-6">
-          Perbarui jumlah tamu yang sedang mengantre di lounge untuk ditampilkan ke calon pelanggan walk-in.
-        </p>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 items-center">
-          <div className="p-6 rounded-2xl bg-[#0D0D14] border border-stone-800 text-center">
-            <span className="text-xs text-stone-400 block uppercase font-medium">
-              Jumlah Tamu Menunggu di Lounge
-            </span>
-            <div className="text-5xl font-extrabold text-[#D4AF37] font-serif my-3">
-              {settings.currentWalkInQueue} <span className="text-xl text-stone-400 font-sans">Orang</span>
-            </div>
-            <div className="flex items-center justify-center gap-3">
-              <button
-                onClick={() => onUpdateQueue(-1)}
-                className="w-10 h-10 rounded-xl bg-stone-800 hover:bg-stone-700 text-white font-bold text-lg cursor-pointer"
-              >
-                -
-              </button>
-              <button
-                onClick={() => onUpdateQueue(1)}
-                className="w-10 h-10 rounded-xl bg-[#D4AF37] hover:bg-[#E5C378] text-stone-950 font-bold text-lg cursor-pointer"
-              >
-                +
-              </button>
-            </div>
-          </div>
-
-          <div className="space-y-3 text-xs">
-            <div className="p-4 rounded-xl bg-[#1A1A26] border border-stone-800">
-              <span className="text-stone-400 block text-[10px] uppercase">
-                Estimasi Waktu Tunggu Otomatis
-              </span>
-              <span className="text-lg font-bold text-white">
-                ~ {settings.estimatedWalkInWaitMinutes} Menit
-              </span>
-            </div>
-
-            <button
-              onClick={onOpenWalkInModal}
-              className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-[#252538] hover:bg-[#D4AF37] text-stone-200 hover:text-stone-950 font-bold text-xs uppercase tracking-wider transition-all cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Catat Tamu Walk-in Baru</span>
-            </button>
-          </div>
-        </div>
-      </div>
+      {/* Walk-In Entry Button */}
+      <button
+        onClick={onOpenWalkInModal}
+        className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-[#252538] hover:bg-[#D4AF37] text-stone-200 hover:text-stone-950 font-bold text-xs uppercase tracking-wider transition-all cursor-pointer"
+      >
+        <Plus className="w-4 h-4" />
+        <span>Catat Tamu Walk-in Baru</span>
+      </button>
     </div>
   );
 };
