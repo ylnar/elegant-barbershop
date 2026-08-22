@@ -26,7 +26,7 @@ import { TransactionDetailModal } from '../modals/TransactionDetailModal';
 import { ConfirmModal } from '../modals/ConfirmModal';
 import { RowActionMenu } from '../../ui/RowActionMenu';
 import { toast } from '../../ui/Toast';
-import { getLocalTodayStr, formatIDR, truncateChars } from '../../../utils/formatters';
+import { getLocalTodayStr, toLocalDateStr, formatIDR, truncateChars } from '../../../utils/formatters';
 
 interface TransactionsTabProps {
   services: Service[];
@@ -132,7 +132,7 @@ export const TransactionsTab: React.FC<TransactionsTabProps> = ({
         (t.customerPhone && t.customerPhone.includes(historySearch)) ||
         t.barberName.toLowerCase().includes(historySearch.toLowerCase());
       const matchDate = historyDateFilter
-        ? t.createdAt.startsWith(historyDateFilter)
+        ? toLocalDateStr(t.createdAt) === historyDateFilter
         : true;
       const matchMethod =
         historyMethodFilter === 'all' || t.paymentMethod === historyMethodFilter;
@@ -233,7 +233,7 @@ export const TransactionsTab: React.FC<TransactionsTabProps> = ({
   // Today metrics
   const todayStr = useMemo(() => getLocalTodayStr(), []);
   const todayTransactions = useMemo(
-    () => transactions.filter((t) => t.createdAt.startsWith(todayStr)),
+    () => transactions.filter((t) => toLocalDateStr(t.createdAt) === todayStr),
     [transactions, todayStr]
   );
   const totalOmzetHariIni = useMemo(

@@ -1,66 +1,71 @@
 import { SystemSettings } from '../types';
 import { INITIAL_SETTINGS } from '../data/initialData';
 import { STORAGE_KEYS, getLocal, setLocal } from './storage';
+import { dbGetSettings, dbUpdateSettings } from './supabaseClient';
 
 export const settingsService = {
   async getSettings(): Promise<SystemSettings> {
+    // 1. Direct Supabase client
     try {
-      const res = await fetch('/api/settings');
-      if (res.ok) {
-        const data = await res.json();
-        setLocal(STORAGE_KEYS.SETTINGS, data);
-        return data;
+      const liveSettings = await dbGetSettings();
+      if (liveSettings) {
+        setLocal(STORAGE_KEYS.SETTINGS, liveSettings);
+        return liveSettings;
       }
-    } catch (e) {
-      console.warn('Backend offline, using local settings:', e);
+    } catch {
+      // Fall through to local cache
     }
-    return getLocal(STORAGE_KEYS.SETTINGS, INITIAL_SETTINGS);
+
+    return getLocal<SystemSettings>(STORAGE_KEYS.SETTINGS, INITIAL_SETTINGS);
   },
 
   async updateSettings(updates: Partial<SystemSettings>): Promise<SystemSettings> {
     try {
-      const res = await fetch('/api/settings', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updates),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setLocal(STORAGE_KEYS.SETTINGS, data.settings);
-        return data.settings;
+      const updated = await dbUpdateSettings(updates);
+      if (updated) {
+        setLocal(STORAGE_KEYS.SETTINGS, updated);
+        return updated;
       }
     } catch (e) {
-      console.warn('Backend update failed, updating locally:', e);
+      console.warn('[Supabase Update Settings]:', e);
     }
-    const current = getLocal(STORAGE_KEYS.SETTINGS, INITIAL_SETTINGS);
-    const updated = { ...current, ...updates };
-    setLocal(STORAGE_KEYS.SETTINGS, updated);
-    return updated;
+
+    // Local fallback
+    const current = getLocal<SystemSettings>(STORAGE_KEYS.SETTINGS, INITIAL_SETTINGS);
+    const merged = { ...current, ...updates };
+    setLocal(STORAGE_KEYS.SETTINGS, merged);
+    return merged;
   },
 
   async toggleBookingSwitch(isOpen?: boolean): Promise<{ isBookingOpen: boolean; message: string }> {
     try {
-      const res = await fetch('/api/settings/toggle-booking', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isOpen }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        const cur = getLocal(STORAGE_KEYS.SETTINGS, INITIAL_SETTINGS);
-        cur.isBookingOpen = data.isBookingOpen;
-        setLocal(STORAGE_KEYS.SETTINGS, cur);
-        return data;
-      }
+      // First read current state
+      const current = await dbGetSettings();
+      const currentState = current?.isBookingOpen ?? true;
+      const newState = typeof isOpen === 'boolean' ? isOpen : !currentState;
+
+      const updated = await dbUpdateSettings({ isBookingOpen: newState });
+      const isOpenFinal = updated?.isBookingOpen ?? newState;
+      const message = isOpenFinal
+        ? 'Sistem Booking Online DIBUKA'
+        : 'Sistem Booking Online DITUTUP (Walk-In Only)';
+
+      // Sync local
+      const localSettings = getLocal<SystemSettings>(STORAGE_KEYS.SETTINGS, INITIAL_SETTINGS);
+      localSettings.isBookingOpen = isOpenFinal;
+      setLocal(STORAGE_KEYS.SETTINGS, localSettings);
+
+      return { isBookingOpen: isOpenFinal, message };
     } catch (e) {
-      console.warn('Toggle failed on server, toggling locally:', e);
+      console.warn('[Supabase Toggle Booking]:', e);
+      // Local fallback
+      const cur = getLocal<SystemSettings>(STORAGE_KEYS.SETTINGS, INITIAL_SETTINGS);
+      cur.isBookingOpen = typeof isOpen === 'boolean' ? isOpen : !cur.isBookingOpen;
+      setLocal(STORAGE_KEYS.SETTINGS, cur);
+      return {
+        isBookingOpen: cur.isBookingOpen,
+        message: cur.isBookingOpen ? 'Sistem Booking Online DIBUKA' : 'Sistem Booking Online DITUTUP (Walk-In Only)',
+      };
     }
-    const cur = getLocal(STORAGE_KEYS.SETTINGS, INITIAL_SETTINGS);
-    cur.isBookingOpen = typeof isOpen === 'boolean' ? isOpen : !cur.isBookingOpen;
-    setLocal(STORAGE_KEYS.SETTINGS, cur);
-    return {
-      isBookingOpen: cur.isBookingOpen,
-      message: cur.isBookingOpen ? 'Sistem Booking Online DIBUKA' : 'Sistem Booking Online DITUTUP (Walk-In Only)',
-    };
   },
 };

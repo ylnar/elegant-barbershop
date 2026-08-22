@@ -19,7 +19,10 @@ export async function GET(req: Request) {
       let query = supabase.from('transactions').select('*').eq('is_deleted', false).order('created_at', { ascending: false });
 
       if (date) {
-        query = query.gte('created_at', `${date}T00:00:00`).lte('created_at', `${date}T23:59:59`);
+        // Convert local WIB date (UTC+7) to UTC range for proper comparison
+        const startUTC = new Date(`${date}T00:00:00+07:00`).toISOString();
+        const endUTC = new Date(`${date}T23:59:59+07:00`).toISOString();
+        query = query.gte('created_at', startUTC).lte('created_at', endUTC);
       }
       if (paymentMethod && paymentMethod !== 'all') {
         query = query.eq('payment_method', String(paymentMethod));
@@ -59,7 +62,10 @@ export async function GET(req: Request) {
   let filtered = serverStore.getTransactions();
 
   if (date) {
-    filtered = filtered.filter((t) => t.createdAt.startsWith(String(date)));
+    // Compare using local WIB date range converted to UTC for timezone safety
+    const startUTC = new Date(`${date}T00:00:00+07:00`).toISOString();
+    const endUTC = new Date(`${date}T23:59:59+07:00`).toISOString();
+    filtered = filtered.filter((t) => t.createdAt >= startUTC && t.createdAt <= endUTC);
   }
   if (paymentMethod && paymentMethod !== 'all') {
     filtered = filtered.filter((t) => t.paymentMethod === paymentMethod);

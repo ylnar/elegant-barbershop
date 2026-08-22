@@ -17,7 +17,11 @@ import { AdminLoginModal, getStoredSession, clearStoredSession, verifySession } 
 const AdminDashboard = lazy(() => import('./components/admin/AdminDashboard').then(m => ({ default: m.AdminDashboard })));
 const DatabaseBlueprintModal = lazy(() => import('./components/admin/DatabaseBlueprintModal').then(m => ({ default: m.DatabaseBlueprintModal })));
 
-export default function App() {
+interface AppProps {
+  dashboardOnly?: boolean;
+}
+
+export default function App({ dashboardOnly = false }: AppProps) {
   const {
     settings,
     services,
@@ -76,10 +80,52 @@ export default function App() {
     addBooking(newBooking);
   };
 
+  const handleOpenAdmin = () => {
+    window.location.assign('/dashboard');
+  };
+
   if (!settings) {
     return (
       <div className="min-h-screen bg-[#0A0A0E] flex items-center justify-center text-white">
         <div className="w-8 h-8 border-2 border-[#D4AF37] border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (dashboardOnly) {
+    return (
+      <div className="min-h-screen bg-[#0A0A0E] text-stone-100">
+        <ToastContainer />
+        {adminDashboardOpen && currentUser ? (
+          <Suspense fallback={
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md">
+              <div className="w-8 h-8 border-2 border-[#D4AF37] border-t-transparent rounded-full animate-spin" />
+            </div>
+          }>
+            <AdminDashboard
+              settings={settings}
+              services={services}
+              barbers={barbers}
+              bookings={bookings}
+              transactions={transactions}
+              currentUser={currentUser}
+              onRefreshData={refreshData}
+              onClose={() => {
+                clearStoredSession();
+                window.location.assign('/');
+              }}
+            />
+          </Suspense>
+        ) : (
+          <AdminLoginModal
+            onSuccess={(user) => {
+              setCurrentUser(user);
+              setAdminLoginModalOpen(false);
+              setAdminDashboardOpen(true);
+            }}
+            onClose={() => window.location.assign('/')}
+          />
+        )}
       </div>
     );
   }
@@ -91,14 +137,7 @@ export default function App() {
       <Navbar
         settings={settings}
         onOpenBooking={handleScrollToBooking}
-        onOpenAdmin={() => {
-          if (currentUser) {
-            // Sudah login → langsung buka dashboard
-            setAdminDashboardOpen(true);
-          } else {
-            setAdminLoginModalOpen(true);
-          }
-        }}
+        onOpenAdmin={handleOpenAdmin}
       />
 
       {/* 2. Hero Section */}
@@ -138,13 +177,7 @@ export default function App() {
       {/* 8. Footer */}
       <Footer
         settings={settings}
-        onOpenAdmin={() => {
-          if (currentUser) {
-            setAdminDashboardOpen(true);
-          } else {
-            setAdminLoginModalOpen(true);
-          }
-        }}
+        onOpenAdmin={handleOpenAdmin}
         onOpenSchemaModal={() => setSchemaModalOpen(true)}
       />
 

@@ -19,19 +19,26 @@ export function useBarbershopData() {
     try {
       setLoading(true);
       setError(null);
-      const [fetchedSettings, fetchedServices, fetchedBarbers, fetchedBookings, fetchedTransactions] =
-        await Promise.all([
+      // Use Promise.allSettled so one failing fetch doesn't break the rest
+      const [settingsResult, servicesResult, barbersResult, bookingsResult, transactionsResult] =
+        await Promise.allSettled([
           api.getSettings(),
           api.getServices(),
           api.getBarbers(),
           api.getBookings(),
           api.getTransactions(),
         ]);
-      setSettings(fetchedSettings);
-      setServices(fetchedServices);
-      setBarbers(fetchedBarbers);
-      setBookings(fetchedBookings);
-      setTransactions(fetchedTransactions);
+      if (settingsResult.status === 'fulfilled') setSettings(settingsResult.value);
+      if (servicesResult.status === 'fulfilled') setServices(servicesResult.value);
+      if (barbersResult.status === 'fulfilled') setBarbers(barbersResult.value);
+      if (bookingsResult.status === 'fulfilled') setBookings(bookingsResult.value);
+      if (transactionsResult.status === 'fulfilled') setTransactions(transactionsResult.value);
+      // Report first error if all failed
+      const failures = [settingsResult, servicesResult, barbersResult, bookingsResult, transactionsResult]
+        .filter((r) => r.status === 'rejected');
+      if (failures.length > 0) {
+        console.warn('Some data loads failed:', failures.map((f) => (f as PromiseRejectedResult).reason?.message || f));
+      }
     } catch (err: any) {
       console.error('Failed to load barbershop data:', err);
       setError(err?.message || 'Gagal memuat data barbershop');

@@ -1,18 +1,19 @@
-import { Transaction, TransactionItem, Barber } from '../types';
-import { INITIAL_TRANSACTIONS, INITIAL_BARBERS } from '../data/initialData';
+import { Transaction, TransactionItem } from '../types';
+import { INITIAL_TRANSACTIONS } from '../data/initialData';
 import { STORAGE_KEYS, getLocal, setLocal } from './storage';
-import { fetchTransactionsLive } from './supabaseClient';
+import { toLocalDateStr } from '../utils/formatters';
+import { fetchTransactionsLive, dbCreateTransaction, dbDeleteTransaction, getSupabaseClient } from './supabaseClient';
 
 export const transactionsService = {
   async getTransactions(filters?: { date?: string; paymentMethod?: string; search?: string }): Promise<Transaction[]> {
-    // 1. Try direct live client Supabase SDK
+    // 1. Direct Supabase client
     try {
       const liveTransactions = await fetchTransactionsLive();
       if (liveTransactions && liveTransactions.length > 0) {
         setLocal(STORAGE_KEYS.TRANSACTIONS, liveTransactions);
         let list = liveTransactions;
         if (filters?.date) {
-          list = list.filter((t) => t.createdAt.startsWith(filters.date!));
+          list = list.filter((t) => toLocalDateStr(t.createdAt) === filters.date!);
         }
         if (filters?.paymentMethod && filters.paymentMethod !== 'all') {
           list = list.filter((t) => t.paymentMethod === filters.paymentMethod);
@@ -29,31 +30,13 @@ export const transactionsService = {
         return list;
       }
     } catch {
-      // Fall through to server API
-    }
-
-    // 2. Fetch from backend server API
-    try {
-      const params = new URLSearchParams();
-      if (filters?.date) params.append('date', filters.date);
-      if (filters?.paymentMethod) params.append('paymentMethod', filters.paymentMethod);
-      if (filters?.search) params.append('search', filters.search);
-
-      const res = await fetch(`/api/transactions?${params.toString()}`);
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data)) {
-          setLocal(STORAGE_KEYS.TRANSACTIONS, data);
-          return data;
-        }
-      }
-    } catch {
       // Fall through to local cache
     }
 
+    // 2. Local cache fallback
     let list = getLocal<Transaction[]>(STORAGE_KEYS.TRANSACTIONS, INITIAL_TRANSACTIONS);
     if (filters?.date) {
-      list = list.filter((t) => t.createdAt.startsWith(filters.date!));
+      list = list.filter((t) => toLocalDateStr(t.createdAt) === filters.date!);
     }
     if (filters?.paymentMethod && filters.paymentMethod !== 'all') {
       list = list.filter((t) => t.paymentMethod === filters.paymentMethod);
@@ -84,67 +67,62 @@ export const transactionsService = {
     changeAmount: number;
     notes?: string;
   }): Promise<Transaction> {
-    try {
-      const res = await fetch('/api/transactions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(transactionData),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        const created = data.transaction;
-        const list = getLocal<Transaction[]>(STORAGE_KEYS.TRANSACTIONS, INITIAL_TRANSACTIONS);
-        list.unshift(created);
-        setLocal(STORAGE_KEYS.TRANSACTIONS, list);
-        return created;
-      }
-    } catch {
-      // Offline fallback
+    const client = getSupabaseClient();
+    if (!client) throw new Error('Supabase belum terkonfigurasi.');
+
+    // Fetch barber name
+    let barberName = 'Staff Barber';
+    if (transactionData.barberId && transactionData.barberId.length > 10) {
+      const { data: barberData } = await client
+        .from('barbers')
+        .select('name')
+        .eq('id', transactionData.barberId)
+        .single();
+      if (barberData) barberName = barberData.name;
     }
 
-    const barbers = getLocal<Barber[]>(STORAGE_KEYS.BARBERS, INITIAL_BARBERS);
-    const barber = barbers.find((b) => b.id === transactionData.barberId);
+    // Generate invoice number
     const randomSuffix = Math.floor(100 + Math.random() * 900);
+    const invoiceNumber = `TRX-${new Date().getFullYear()}-${randomSuffix}`;
 
-    const newTx: Transaction = {
-      id: `trx-${Date.now()}`,
-      invoiceNumber: `TRX-${new Date().getFullYear()}-${randomSuffix}`,
+    const created = await dbCreateTransaction({
+      invoiceNumber,
       bookingId: transactionData.bookingId,
       customerName: transactionData.customerName || 'Tamu Umum (Walk-in)',
       customerPhone: transactionData.customerPhone,
       barberId: transactionData.barberId,
-      barberName: barber ? barber.name : 'Staff Barber',
+      barberName,
       items: transactionData.items,
-      subtotal: transactionData.subtotal,
-      discount: transactionData.discount || 0,
-      totalAmount: transactionData.totalAmount,
-      paymentMethod: transactionData.paymentMethod,
-      amountPaid: transactionData.amountPaid,
-      changeAmount: transactionData.changeAmount,
+      subtotal: Math.max(0, transactionData.subtotal || transactionData.totalAmount),
+      discount: Math.max(0, transactionData.discount || 0),
+      totalAmount: Math.max(0, transactionData.totalAmount),
+      paymentMethod: transactionData.paymentMethod || 'cash',
+      amountPaid: Math.max(0, transactionData.amountPaid || transactionData.totalAmount),
+      changeAmount: Math.max(0, transactionData.changeAmount || 0),
       notes: transactionData.notes,
-      createdAt: new Date().toISOString(),
-    };
+    });
 
+    // Update local cache
     const list = getLocal<Transaction[]>(STORAGE_KEYS.TRANSACTIONS, INITIAL_TRANSACTIONS);
-    list.unshift(newTx);
+    list.unshift(created);
     setLocal(STORAGE_KEYS.TRANSACTIONS, list);
-    return newTx;
+
+    return created;
   },
 
   async deleteTransaction(id: string): Promise<boolean> {
-    try {
-      const res = await fetch(`/api/transactions/${id}`, { method: 'DELETE' });
-      if (res.ok) {
-        const list = getLocal<Transaction[]>(STORAGE_KEYS.TRANSACTIONS, INITIAL_TRANSACTIONS).filter((t) => t.id !== id);
-        setLocal(STORAGE_KEYS.TRANSACTIONS, list);
-        return true;
+    // Try Supabase first — only if ID is a valid UUID (length > 20)
+    if (id.length > 20) {
+      try {
+        await dbDeleteTransaction(id);
+      } catch (e: any) {
+        console.warn('[Supabase Delete Transaction]:', e.message);
       }
-    } catch {
-      // Offline fallback
     }
+
+    // Always sync local cache
     const list = getLocal<Transaction[]>(STORAGE_KEYS.TRANSACTIONS, INITIAL_TRANSACTIONS).filter((t) => t.id !== id);
     setLocal(STORAGE_KEYS.TRANSACTIONS, list);
     return true;
   },
 };
-

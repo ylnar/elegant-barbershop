@@ -10,6 +10,15 @@ export function getLocalDateStr(offsetDays = 0): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+/**
+ * Convert any ISO timestamp (possibly UTC from Supabase) to local YYYY-MM-DD.
+ * This avoids timezone mismatches when comparing UTC stored dates with local "today".
+ */
+export function toLocalDateStr(isoString: string): string {
+  const d = new Date(isoString);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 /** Sanitasi input nomor WhatsApp: angka saja, maksimal 16 digit */
 export function sanitizePhoneInput(value: string): string {
   return value.replace(/[^0-9]/g, '').slice(0, 16);

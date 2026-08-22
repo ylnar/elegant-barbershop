@@ -1,11 +1,17 @@
-import { Booking, Service, Barber } from '../types';
-import { INITIAL_BOOKINGS, INITIAL_SERVICES, INITIAL_BARBERS } from '../data/initialData';
+import { Booking } from '../types';
+import { INITIAL_BOOKINGS } from '../data/initialData';
 import { STORAGE_KEYS, getLocal, setLocal } from './storage';
-import { fetchBookingsLive } from './supabaseClient';
+import {
+  fetchBookingsLive,
+  dbCreateBooking,
+  dbUpdateBooking,
+  dbDeleteBooking,
+  getSupabaseClient,
+} from './supabaseClient';
 
 export const bookingsService = {
   async getBookings(filters?: { date?: string; status?: string; search?: string; code?: string }): Promise<Booking[]> {
-    // 1. Try direct live client Supabase SDK
+    // 1. Direct Supabase client
     try {
       const liveBookings = await fetchBookingsLive();
       if (liveBookings && liveBookings.length > 0) {
@@ -13,6 +19,9 @@ export const bookingsService = {
         let list = liveBookings;
         if (filters?.code) {
           list = list.filter((b) => b.bookingCode.toLowerCase() === filters.code?.toLowerCase());
+        }
+        if (filters?.date) {
+          list = list.filter((b) => b.date === filters.date);
         }
         if (filters?.status && filters.status !== 'all') {
           list = list.filter((b) => b.status === filters.status);
@@ -29,32 +38,15 @@ export const bookingsService = {
         return list;
       }
     } catch {
-      // Fall through to server API
-    }
-
-    // 2. Fetch from backend server API
-    try {
-      const params = new URLSearchParams();
-      if (filters?.date) params.append('date', filters.date);
-      if (filters?.status) params.append('status', filters.status);
-      if (filters?.search) params.append('search', filters.search);
-      if (filters?.code) params.append('code', filters.code);
-
-      const res = await fetch(`/api/bookings?${params.toString()}`);
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data)) {
-          setLocal(STORAGE_KEYS.BOOKINGS, data);
-          return data;
-        }
-      }
-    } catch {
       // Fall through to local cache
     }
 
     let list = getLocal<Booking[]>(STORAGE_KEYS.BOOKINGS, INITIAL_BOOKINGS);
     if (filters?.code) {
       list = list.filter((b) => b.bookingCode.toLowerCase() === filters.code?.toLowerCase());
+    }
+    if (filters?.date) {
+      list = list.filter((b) => b.date === filters.date);
     }
     if (filters?.status && filters.status !== 'all') {
       list = list.filter((b) => b.status === filters.status);
@@ -82,85 +74,160 @@ export const bookingsService = {
     isWalkIn?: boolean;
     isAdminEntry?: boolean;
   }): Promise<Booking> {
-    try {
-      const res = await fetch('/api/bookings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(bookingData),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        const created = data.booking;
-        const bookings = getLocal<Booking[]>(STORAGE_KEYS.BOOKINGS, INITIAL_BOOKINGS);
-        bookings.unshift(created);
-        setLocal(STORAGE_KEYS.BOOKINGS, bookings);
-        return created;
-      } else {
-        const err = await res.json();
-        throw new Error(err.error || 'Gagal membuat reservasi.');
-      }
-    } catch (e: any) {
-      throw e instanceof Error ? e : new Error('Gagal membuat reservasi ke database.');
+    const client = getSupabaseClient();
+    if (!client) throw new Error('Supabase belum terkonfigurasi.');
+
+    // Fetch service & barber info for full data
+    const { data: serviceData } = await client
+      .from('services')
+      .select('*')
+      .eq('id', bookingData.serviceId)
+      .single();
+
+    const serviceName = serviceData?.name || 'Layanan Pangkas';
+    const servicePrice = Number(serviceData?.price ?? 0);
+
+    let barberName = 'Barber Siap Pertama';
+    if (bookingData.barberId && bookingData.barberId !== 'any' && bookingData.barberId.length > 10) {
+      const { data: barberData } = await client
+        .from('barbers')
+        .select('*')
+        .eq('id', bookingData.barberId)
+        .single();
+      if (barberData) barberName = barberData.name;
     }
+
+    const created = await dbCreateBooking({
+      customerName: bookingData.customerName,
+      customerPhone: bookingData.customerPhone,
+      customerEmail: bookingData.customerEmail,
+      serviceId: bookingData.serviceId,
+      serviceName,
+      servicePrice,
+      barberId: bookingData.barberId || 'any',
+      barberName,
+      date: bookingData.date,
+      timeSlot: bookingData.timeSlot,
+      totalAmount: servicePrice,
+      isWalkIn: bookingData.isWalkIn,
+    });
+
+    // Update local cache
+    const bookings = getLocal<Booking[]>(STORAGE_KEYS.BOOKINGS, INITIAL_BOOKINGS);
+    bookings.unshift(created);
+    setLocal(STORAGE_KEYS.BOOKINGS, bookings);
+
+    return created;
   },
 
   async updateBooking(id: string, updates: Partial<Booking>): Promise<Booking> {
-    try {
-      const res = await fetch(`/api/bookings/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updates),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        const updated = data.booking;
+    // Try Supabase first — only if ID is a valid UUID
+    if (id.length > 20) {
+      try {
+        const updated = await dbUpdateBooking(id, updates);
         const bookings = getLocal<Booking[]>(STORAGE_KEYS.BOOKINGS, INITIAL_BOOKINGS);
-        const idx = bookings.findIndex((b) => b.id === id || b.bookingCode === id);
+        const idx = bookings.findIndex((b) => b.id === id);
         if (idx !== -1) {
           bookings[idx] = { ...bookings[idx], ...updated };
-        } else {
-          bookings.unshift(updated);
         }
         setLocal(STORAGE_KEYS.BOOKINGS, bookings);
         return updated;
+      } catch (e: any) {
+        console.warn('[Supabase Update Booking Error]:', e.message);
       }
-      const error = await res.json().catch(() => ({}));
-      throw new Error(error.error || 'Perubahan booking gagal disimpan ke database.');
-    } catch {
-      throw new Error('Perubahan booking gagal disimpan ke database. Periksa koneksi server dan Supabase.');
     }
+
+    // Local-only fallback for non-UUID IDs
+    const bookings = getLocal<Booking[]>(STORAGE_KEYS.BOOKINGS, INITIAL_BOOKINGS);
+    const idx = bookings.findIndex((b) => b.id === id);
+    if (idx !== -1) {
+      bookings[idx] = { ...bookings[idx], ...updates, updatedAt: new Date().toISOString() };
+      setLocal(STORAGE_KEYS.BOOKINGS, bookings);
+      return bookings[idx];
+    }
+    throw new Error('Booking tidak ditemukan.');
   },
 
   async deleteBooking(id: string): Promise<boolean> {
-    try {
-      const res = await fetch(`/api/bookings/${encodeURIComponent(id)}`, {
-        method: 'DELETE',
-      });
-      if (res.status === 404) {
-        // Sudah tidak ada di server — anggap sukses agar cache lokal tetap bersih
-      } else if (!res.ok) {
-        const error = await res.json().catch(() => ({}));
-        throw new Error(error.error || 'Gagal menghapus data reservasi.');
+    // Try Supabase first — only if ID is a valid UUID (length > 20)
+    if (id.length > 20) {
+      try {
+        await dbDeleteBooking(id);
+      } catch (e: any) {
+        console.warn('[Supabase Delete Booking]:', e.message);
+        // Continue to remove from local cache even if Supabase fails
       }
-    } catch (e: any) {
-      throw e instanceof Error ? e : new Error('Gagal menghapus data reservasi.');
     }
 
-    // Sinkronkan cache lokal
+    // Always sync local cache
     const bookings = getLocal<Booking[]>(STORAGE_KEYS.BOOKINGS, INITIAL_BOOKINGS);
     setLocal(STORAGE_KEYS.BOOKINGS, bookings.filter((b) => b.id !== id && b.bookingCode !== id));
     return true;
   },
 
   async trackBooking(query: string): Promise<Booking[]> {
-    try {
-      const res = await fetch(`/api/bookings/track/${encodeURIComponent(query)}`);
-      if (res.ok) {
-        return await res.json();
+    const client = getSupabaseClient();
+    if (client) {
+      try {
+        const q = query.trim().toLowerCase();
+        // Try by booking code
+        const { data: byCode } = await client
+          .from('bookings')
+          .select('*')
+          .ilike('booking_code', q)
+          .eq('is_deleted', false)
+          .limit(10);
+        if (byCode && byCode.length > 0) return byCode.map((b: any) => ({
+          id: String(b.id),
+          bookingCode: b.booking_code,
+          customerName: b.customer_name,
+          customerPhone: b.customer_phone,
+          customerEmail: b.customer_email || undefined,
+          serviceId: String(b.service_id || ''),
+          serviceName: b.service_name,
+          servicePrice: Number(b.service_price ?? 0),
+          barberId: String(b.barber_id || 'any'),
+          barberName: b.barber_name,
+          date: typeof b.date === 'string' ? b.date.split('T')[0] : b.date,
+          timeSlot: b.time_slot,
+          totalAmount: Number(b.total_amount ?? 0),
+          status: b.status,
+          isWalkIn: Boolean(b.is_walk_in),
+          createdAt: b.created_at,
+          updatedAt: b.updated_at,
+        }));
+
+        // Try by phone
+        const { data: byPhone } = await client
+          .from('bookings')
+          .select('*')
+          .eq('customer_phone', q.replace(/[^0-9]/g, ''))
+          .eq('is_deleted', false)
+          .limit(10);
+        if (byPhone && byPhone.length > 0) return byPhone.map((b: any) => ({
+          id: String(b.id),
+          bookingCode: b.booking_code,
+          customerName: b.customer_name,
+          customerPhone: b.customer_phone,
+          customerEmail: b.customer_email || undefined,
+          serviceId: String(b.service_id || ''),
+          serviceName: b.service_name,
+          servicePrice: Number(b.service_price ?? 0),
+          barberId: String(b.barber_id || 'any'),
+          barberName: b.barber_name,
+          date: typeof b.date === 'string' ? b.date.split('T')[0] : b.date,
+          timeSlot: b.time_slot,
+          totalAmount: Number(b.total_amount ?? 0),
+          status: b.status,
+          isWalkIn: Boolean(b.is_walk_in),
+          createdAt: b.created_at,
+          updatedAt: b.updated_at,
+        }));
+      } catch {
+        // Fall through to local
       }
-    } catch {
-      // Offline fallback
     }
+
     const q = query.trim().toLowerCase();
     const bookings = getLocal<Booking[]>(STORAGE_KEYS.BOOKINGS, INITIAL_BOOKINGS);
     return bookings.filter(
@@ -170,4 +237,3 @@ export const bookingsService = {
     );
   },
 };
-

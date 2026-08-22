@@ -550,16 +550,16 @@ export const SITEMAP_WORKFLOW_BLUEPRINT: SitemapNode[] = [
   },
   {
     title: '2. Dashboard Admin & Kasir',
-    path: '/admin',
+    path: '/dashboard',
     role: 'Admin & Staff',
     description: 'Portal manajemen transaksi POS, kasir cepat, jadwal, dan layanan.',
     subPages: [
-      { title: 'Kasir & Transaksi POS', path: '/admin#pos', role: 'Admin & Staff', description: 'Input transaksi cepat (pilih item & bayar) dan pencatatan omzet harian.' },
-      { title: 'Master Switch Booking', path: '/admin#switch', role: 'Admin & Staff', description: 'Buka / tutup reservasi online sekali klik.' },
-      { title: 'Kelola Antrean & Reservasi', path: '/admin#bookings', role: 'Admin & Staff', description: 'Manajemen tiket dan konfirmasi WhatsApp.' },
-      { title: 'Kelola Layanan & Harga', path: '/admin#services', role: 'Admin & Staff', description: 'Tambah dan ubah harga pricelist.' },
-      { title: 'Kelola Tim Barber', path: '/admin#barbers', role: 'Admin & Staff', description: 'Tambah atau ubah data barber.' },
-      { title: 'Laporan Keuangan & Omzet', path: '/admin#reports', role: 'Admin & Staff', description: 'Analitik pendapatan harian, mingguan, dan bulanan.' },
+      { title: 'Kasir & Transaksi POS', path: '/dashboard#pos', role: 'Admin & Staff', description: 'Input transaksi cepat (pilih item & bayar) dan pencatatan omzet harian.' },
+      { title: 'Master Switch Booking', path: '/dashboard#switch', role: 'Admin & Staff', description: 'Buka / tutup reservasi online sekali klik.' },
+      { title: 'Kelola Antrean & Reservasi', path: '/dashboard#bookings', role: 'Admin & Staff', description: 'Manajemen tiket dan konfirmasi WhatsApp.' },
+      { title: 'Kelola Layanan & Harga', path: '/dashboard#services', role: 'Admin & Staff', description: 'Tambah dan ubah harga pricelist.' },
+      { title: 'Kelola Tim Barber', path: '/dashboard#barbers', role: 'Admin & Staff', description: 'Tambah atau ubah data barber.' },
+      { title: 'Laporan Keuangan & Omzet', path: '/dashboard#reports', role: 'Admin & Staff', description: 'Analitik pendapatan harian, mingguan, dan bulanan.' },
     ],
   },
 ];
