@@ -75,19 +75,24 @@ Aplikasi ini dirancang untuk mengatasi inefisiensi pencatatan manual, memberikan
 2. **Kasir POS Modal Cepat**:
    - Popup transaksi ringkas (1 layanan utama per pesanan).
    - Dropdown pemilihan barber yang melayani.
-   - Pilihan metode pembayaran: *Tunai (Cash), QRIS, Transfer Bank*.
+   - Pilihan metode pembayaran: *Tunai (Cash), QRIS, Transfer Bank, Kartu Debit*.
    - Kalkulator otomatis nominal bayar dan uang kembalian (*change calculation*).
    - Penghitungan omzet harian otomatis dan kartu ringkasan visual.
-3. **Manajemen Reservasi (Bookings Tab)**:
+3. **Payment on Completion**:
+   - Saat admin menyelesaikan reservasi (status → Selesai), muncul modal pembayaran.
+   - Pilih metode bayar (Cash/QRIS/Transfer/Debit), input jumlah bayar, lihat kembalian.
+   - Transaksi otomatis dibuat dengan detail pembayaran yang dipilih.
+4. **Manajemen Reservasi (Bookings Tab)**:
    - Tabel reservasi masuk, filter status (*pending, confirmed, completed, cancelled*), dan aksi update status.
-4. **Manajemen Katalog Layanan (Services Tab)**:
+   - Status dropdown untuk update cepat (Menunggu, Terkonfirmasi, Dilayani, Selesai, Dibatalkan).
+5. **Manajemen Katalog Layanan (Services Tab)**:
    - Form tambah/edit layanan sederhana (Nama Layanan, Kategori, Harga).
    - Toggle status aktif/non-aktif layanan.
-5. **Manajemen Tim Barber (Barbers Tab)**:
+6. **Manajemen Tim Barber (Barbers Tab)**:
    - Form tambah dan kelola data profil barber.
-6. **Laporan & Rekapitulasi (Reports Tab)**:
+7. **Laporan & Rekapitulasi (Reports Tab)**:
    - Rekap omzet harian, mingguan, dan performa transaksi.
-7. **Panduan Operasional Kasir (Admin Guide Tab)**:
+8. **Panduan Operasional Kasir (Admin Guide Tab)**:
    - Dokumentasi alur kerja kasir dan tips operasional harian.
 
 ---
@@ -102,6 +107,7 @@ Aplikasi ini dirancang untuk mengatasi inefisiensi pencatatan manual, memberikan
 2. **Kinerja & Kecepatan (Performance)**:
    - Waktu muat awal di bawah 1.5 detik dengan Next.js App Router & Tailwind CSS.
    - Client-side data caching dengan fallback `localStorage` sehingga UI tetap responsif saat koneksi lambat.
+   - Cache versioning otomatis — stale cache di-clear saat kode di-deploy.
 3. **Desain & Responsivitas (UI/UX)**:
    - Palet warna mewah: Dark Charcoal/Onyx (`#0C0C12`, `#14141E`) berpadu dengan aksen Warm Gold (`#D4AF37`) dan teks kontras tinggi.
    - Desain responsif optimal untuk Smartphone (Mobile-First touch target minimal 44px), Tablet, dan Layar Desktop/Kasir.

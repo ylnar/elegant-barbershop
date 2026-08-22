@@ -49,6 +49,9 @@
 - **Master Switch Buka/Tutup Booking**: Buka atau alihkan ke mode *Walk-In Only* dalam 1 klik.
 - **Manajemen Katalog & Tim**: Tambah/ubah harga layanan dan data barber dengan cepat.
 - **Laporan Keuangan**: Rekapitulasi transaksi per tanggal dan metode pembayaran.
+- **Transaksi List Ringkas**: Tampilan riwayat transaksi hanya menampilkan invoice, waktu, pelanggan, dan harga — detail lengkap di modal.
+- **Payment on Completion**: Saat menyelesaikan reservasi, muncul modal pembayaran untuk memilih metode bayar (Cash/QRIS/Transfer/Debit) sebelum transaksi otomatis dibuat.
+- **Waktu WIB Konsisten**: Semua waktu ditampilkan dalam Asia/Jakarta (WIB) regardless browser timezone.
 
 ---
 
@@ -121,7 +124,7 @@
    ```bash
    cp .env.example .env
    ```
-   *(Isi `GEMINI_API_KEY` jika ingin mengaktifkan model AI Gemini).*
+   Isi minimal `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, dan `SUPABASE_SERVICE_ROLE_KEY` dari dashboard Supabase. *(Isi `GEMINI_API_KEY` jika ingin mengaktifkan model AI Gemini.)*
 
 4. **Jalankan aplikasi dalam mode Development:**
    ```bash
@@ -141,12 +144,16 @@
 
 | Variable | Wajib/Opsional | Deskripsi |
 | :--- | :--- | :--- |
-| `SUPABASE_URL` | Wajib | URL project Supabase (`https://xxx.supabase.co`). |
-| `SUPABASE_ANON_KEY` | Wajib | Anon/public key Supabase. |
+| `NEXT_PUBLIC_SUPABASE_URL` | Wajib | URL project Supabase untuk client-side (`https://xxx.supabase.co`). |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Wajib | Anon/public key Supabase untuk client-side. |
+| `SUPABASE_URL` | Wajib | URL project Supabase untuk server-side (API routes, Edge Functions). |
+| `SUPABASE_ANON_KEY` | Wajib | Anon key untuk server-side. |
 | `SUPABASE_SERVICE_ROLE_KEY` | Wajib | Service role key — hanya untuk server, jangan pernah diekspos ke browser. |
 | `DATABASE_URL` | Opsional | Connection string PostgreSQL untuk tooling migrasi CLI. |
-| `DB_AUTO_MIGRATE` | Opsional | `true`/`false` — terapkan migrasi otomatis saat setup lokal. |
-| `GEMINI_API_KEY` | Opsional | Kunci API Google Gemini untuk fitur AI Barber Consultant. *(Jika tidak diisi, sistem otomatis menggunakan Master Barber Heuristic Fallback tanpa error).* |
+| `DB_AUTO_MIGRATE` | Opsional | `true`/`false` — terapkan migrasi otomatis saat setup lokal. Default: `true`. |
+| `GEMINI_API_KEY` | Opsional | Kunci API Google Gemini untuk fitur AI Barber Consultant. *(Jika tidak diisi, sistem fallback ke heuristic master barber).* |
+
+> **Penting**: Client-side code hanya bisa membaca env var yang diawali `NEXT_PUBLIC_`. Server-side code membutuhkan versi tanpa prefix.
 
 ---
 
@@ -157,13 +164,28 @@ Proyek ini sudah dilengkapi dengan konfigurasi `vercel.json`:
 1. Push repository ke GitHub.
 2. Buka [Vercel Dashboard](https://vercel.com/) dan import repository Anda.
 3. Framework Preset terdeteksi otomatis: **Next.js**.
-4. Masukkan Environment Variables (`SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, opsional `GEMINI_API_KEY`).
+4. Masukkan Environment Variables (lengkap: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, opsional `GEMINI_API_KEY`).
 5. Klik **Deploy**.
 
 ### 2. Deploy ke Cloud Run / Docker / VPS
 Next.js dapat dijalankan sebagai server mandiri:
 1. Jalankan `npm run build`.
 2. Jalankan `npm start`. Server akan melayani halaman publik sekaligus REST API pada port `3000`.
+
+---
+
+## 📚 Database Migrasi
+
+Migrasi dikonsolidasi menjadi 2 file:
+- `supabase/migrations/001_schema.sql` — Skema lengkap (tabel, index, trigger, stored procedures, views, RLS, grants, realtime)
+- `supabase/migrations/002_seed.sql` — Data awal (categories, services, barbers, admin users, settings)
+
+Jalankan migrasi:
+```bash
+npm run db:migrate
+```
+
+Migrasi berjalan otomatis saat server start jika `DB_AUTO_MIGRATE=true`.
 
 ---
 

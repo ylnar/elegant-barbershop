@@ -121,10 +121,16 @@ elegant-barbershop/
 
 ### 3.1 Dual-Tier Resilience Pattern
 Aplikasi menggunakan pola ketahanan ganda (*dual-tier persistence resilience*):
-1. **Primary Layer (Server REST API)**: Klien melakukan `fetch()` ke endpoint `/api/*` (Next.js Route Handlers). Data tersinkronisasi di server state store.
-2. **Fallback Layer (Client Local Storage)**: Jika server sedang *cold-start*, offline, atau diakses di lingkungan serverless murni, `services/*` secara otomatis membaca dan menulis ke `localStorage` melalui `storage.ts`. Pengguna tidak akan pernah menemui layar blank atau error fatal.
+1. **Primary Layer (Supabase Direct Client)**: Klien menggunakan `@supabase/supabase-js` langsung dari browser dengan anon key. Semua operasi CRUD (SELECT, INSERT, UPDATE, DELETE) dilakukan langsung ke Supabase PostgreSQL via REST API. Data real-time via Supabase Realtime subscriptions.
+2. **Fallback Layer (Client Local Storage)**: Jika Supabase tidak terkonfigurasi atau koneksi gagal, `services/*` secara otomatis membaca dan menulis ke `localStorage` melalui `storage.ts`. Pengguna tidak akan pernah menemui layar blank atau error fatal.
 
-### 3.2 AI Consultant Interaction Flow
+### 3.2 Realtime Data Flow
+- Semua tabel operasional (bookings, transactions, services, barbers, system_settings) terdaftar di `supabase_realtime` publication.
+- `useBarbershopData` hook berlangganan ke semua tabel via `subscribeToTable()`. Setiap perubahan data di Supabase langsung ter-refetch ke UI.
+- Tab refocus dan visibility change juga trigger re-fetch untuk memastikan data selalu fresh.
+- Soft delete (`is_deleted: true`) ditangkap sebagai DELETE event di realtime handler.
+
+### 3.3 AI Consultant Interaction Flow
 1. Pengguna mengisi form preferensi gaya rambut di `BookingSection.tsx`.
 2. Request dikirim ke `POST /api/ai-consultant`.
 3. Route `ai.ts` memanggil model `@google/genai` (`gemini-3.7-flash`) dengan prompt persona Master Barber terstruktur dan `responseMimeType: 'application/json'`.
@@ -135,9 +141,10 @@ Aplikasi menggunakan pola ketahanan ganda (*dual-tier persistence resilience*):
 ## 4. Security Design & Policies
 
 - **Server-Side API Key Protection**: Kunci `GEMINI_API_KEY` dikelola murni pada environment server (`process.env.GEMINI_API_KEY`) dan tidak pernah diinjeksi ke frontend bundle.
+- **Supabase RLS (Row Level Security)**: Semua tabel memiliki RLS dengan policy `FOR ALL USING (true) WITH CHECK (true)` untuk anon role — mengizinkan full CRUD dari client-side. Admin users hanya bisa diakses oleh service_role.
 - **Input Sanitization**: Seluruh string input pengguna pada nama, telepon, catatan, dan nama layanan disanitasi dari karakter tag HTML (`<`, `>`) untuk menolak upaya XSS.
 - **In-Memory Rate Limiting**: Endpoint publik seperti pembuatan reservasi dan konsultasi AI dilindungi dengan batas wajar (misal: 30 request/menit per IP) untuk mencegah DoS/bot spam.
-- **Security Headers**: Middleware otomatis menambahkan `X-Content-Type-Options: nosniff`, `X-XSS-Protection: 1; mode=block`, dan `Referrer-Policy: strict-origin-when-cross-origin`.
+- **Security Headers**: Vercel `vercel.json` menambahkan `X-Content-Type-Options: nosniff`, `Strict-Transport-Security`, `Content-Security-Policy`, dan header keamanan lainnya.
 
 ---
 
@@ -149,4 +156,5 @@ Aplikasi menggunakan pola ketahanan ganda (*dual-tier persistence resilience*):
 
 ### 5.2 Vercel (Serverless / Static Deployment)
 - Framework terdeteksi otomatis sebagai **Next.js** — tidak perlu konfigurasi tambahan. `vercel.json` hanya menyediakan security headers & cache-control untuk aset statis.
-- Environment variables (`SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, opsional `GEMINI_API_KEY`) dikonfigurasi melalui dashboard Vercel.
+- Environment variables lengkap (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, opsional `GEMINI_API_KEY`) dikonfigurasi melalui dashboard Vercel.
+- Migrasi database berjalan otomatis saat server start (`DB_AUTO_MIGRATE=true`).
