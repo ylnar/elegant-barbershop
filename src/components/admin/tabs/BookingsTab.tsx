@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Search,
   Plus,
@@ -8,10 +8,15 @@ import {
   ChevronLeft,
   ChevronRight,
   Trash2,
+  Eye,
+  Copy,
 } from 'lucide-react';
 import { Booking, BookingStatus } from '../../../types';
 import { formatIDR, formatDateIndonesian, getStatusBadge, generateBarberWhatsAppLink, generateCustomerWhatsAppLink, getLocalTodayStr } from '../../../utils/formatters';
 import { Barber } from '../../../types';
+import { RowActionMenu } from '../../ui/RowActionMenu';
+import { BookingDetailModal } from '../modals/BookingDetailModal';
+import { toast } from '../../ui/Toast';
 
 const ACTIVE_STATUSES: BookingStatus[] = ['pending', 'confirmed', 'in_service'];
 
@@ -49,6 +54,14 @@ export const BookingsTab: React.FC<BookingsTabProps> = ({
   const [bookingFilterDate, setBookingFilterDate] = useState<string>('all');
   const [bookingFilterStatus, setBookingFilterStatus] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  // Detail Modal State
+  const [detailModalOpen, setDetailModalOpen] = useState<boolean>(false);
+  const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+
+  // Menu titik-3: hanya satu menu yang boleh terbuka di seluruh daftar
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const closeMenu = useCallback(() => setOpenMenuId(null), []);
+
   const [currentPage, setCurrentPage] = useState<number>(1);
   const ITEMS_PER_PAGE = 10;
 
@@ -98,43 +111,57 @@ export const BookingsTab: React.FC<BookingsTabProps> = ({
       ? 'Riwayat masih kosong. Reservasi berstatus Selesai/Dibatalkan akan muncul di sini.'
       : 'Tidak ada data reservasi yang sesuai dengan filter.';
 
-  const renderRowActions = (b: Booking) => {
+  const handleViewDetail = (b: Booking) => {
+    setSelectedBooking(b);
+    setDetailModalOpen(true);
+  };
+
+  const handleCopyCode = async (code: string) => {
+    try {
+      await navigator.clipboard.writeText(code);
+      toast.success(`Kode ${code} disalin.`);
+    } catch {
+      toast.error('Gagal menyalin. Salin manual: ' + code);
+    }
+  };
+
+  const renderRowActions = (b: Booking, prefix: string) => {
     const barberPhone = getBarberPhone(b.barberId);
     return (
-    <div className="flex items-center gap-1">
-      {barberPhone ? (
-        <a
-          href={generateBarberWhatsAppLink(barberPhone, b.customerName, b.bookingCode, b.serviceName, b.date, b.timeSlot, b.status)}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg bg-[#25D366]/20 hover:bg-[#25D366]/30 text-[#25D366] border border-[#25D366]/40 font-semibold transition-colors text-[10px]"
-          title="Kirim notifikasi ke WhatsApp Barber"
-        >
-          <MessageCircle className="w-3 h-3" />
-          <span>Barber</span>
-        </a>
-      ) : null}
-      {b.customerPhone ? (
-        <a
-          href={generateCustomerWhatsAppLink(b.customerPhone, b.customerName, b.bookingCode, b.serviceName, b.barberName, b.date, b.timeSlot, b.status)}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg bg-sky-500/20 hover:bg-sky-500/30 text-sky-400 border border-sky-500/40 font-semibold transition-colors text-[10px]"
-          title="Kirim notifikasi ke WhatsApp Pelanggan"
-        >
-          <MessageCircle className="w-3 h-3" />
-          <span>Tamu</span>
-        </a>
-      ) : null}
-      <button
-        type="button"
-        onClick={() => onRequestDeleteBooking(b)}
-        className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-rose-500/10 hover:bg-rose-500/25 text-rose-400 border border-rose-500/30 transition-colors cursor-pointer"
-        title={`Hapus reservasi ${b.bookingCode}`}
-      >
-        <Trash2 className="w-3.5 h-3.5" />
-      </button>
-    </div>
+    <RowActionMenu
+      itemId={`${prefix}-${b.id}`}
+      isOpen={openMenuId === `${prefix}-${b.id}`}
+      onToggle={setOpenMenuId}
+      ariaLabel={`Aksi untuk reservasi ${b.bookingCode}`}
+      items={[
+        {
+          label: 'Lihat Detail',
+          icon: Eye,
+          onClick: () => handleViewDetail(b),
+        },
+        {
+          label: 'Salin Kode',
+          icon: Copy,
+          onClick: () => void handleCopyCode(b.bookingCode),
+        },
+        ...(barberPhone ? [{
+          label: 'WA Barber',
+          icon: MessageCircle,
+          onClick: () => window.open(generateBarberWhatsAppLink(barberPhone, b.customerName, b.bookingCode, b.serviceName, b.date, b.timeSlot, b.status), '_blank'),
+        }] : []),
+        ...(b.customerPhone ? [{
+          label: 'WA Pelanggan',
+          icon: MessageCircle,
+          onClick: () => window.open(generateCustomerWhatsAppLink(b.customerPhone, b.customerName, b.bookingCode, b.serviceName, b.barberName, b.date, b.timeSlot, b.status), '_blank'),
+        }] : []),
+        {
+          label: 'Hapus Reservasi',
+          icon: Trash2,
+          danger: true,
+          onClick: () => onRequestDeleteBooking(b),
+        },
+      ]}
+    />
     );
   };
 
@@ -318,7 +345,7 @@ export const BookingsTab: React.FC<BookingsTabProps> = ({
                       <option value="cancelled">Batal</option>
                     </select>
 
-                    {renderRowActions(b)}
+                    {renderRowActions(b, 'bk-mobile')}
                   </div>
                 </div>
               );
@@ -400,7 +427,7 @@ export const BookingsTab: React.FC<BookingsTabProps> = ({
                         </td>
 
                         <td className="py-3 px-4 text-right">
-                          {renderRowActions(b)}
+                          {renderRowActions(b, 'bk-desktop')}
                         </td>
                       </tr>
                     );
@@ -464,6 +491,17 @@ export const BookingsTab: React.FC<BookingsTabProps> = ({
           </div>
         )}
       </div>
+
+      {/* Booking Detail Modal */}
+      <BookingDetailModal
+        isOpen={detailModalOpen}
+        booking={selectedBooking}
+        onClose={() => {
+          setDetailModalOpen(false);
+          setSelectedBooking(null);
+        }}
+        onStatusChange={onStatusChange}
+      />
     </div>
   );
 };

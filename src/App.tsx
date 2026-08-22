@@ -5,7 +5,6 @@ import { Navbar } from './components/Navbar';
 import { HeroSection } from './components/HeroSection';
 import { ServicesSection } from './components/ServicesSection';
 import { BookingSection } from './components/BookingSection';
-import { ReviewsSection } from './components/ReviewsSection';
 import { LocationSection } from './components/LocationSection';
 import { Footer } from './components/Footer';
 
@@ -167,10 +166,7 @@ export default function App({ dashboardOnly = false }: AppProps) {
           onTrackTicket={(booking) => setTicketModalBooking(booking)}
         />
 
-        {/* 6. Reviews & Ratings */}
-        <ReviewsSection />
-
-        {/* 7. Location & Operating Hours */}
+        {/* 6. Location & Operating Hours */}
         <LocationSection settings={settings} />
       </main>
 

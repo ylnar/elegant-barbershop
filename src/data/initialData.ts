@@ -367,7 +367,6 @@ export const SITEMAP_WORKFLOW_BLUEPRINT: SitemapNode[] = [
       { title: 'Price List Resmi', path: '/#services', role: 'Public / Customer', description: 'Daftar harga: Premium 45k, Kids 20k/30k, Perming 250k, Colouring, dsb.' },
       { title: 'Master Barber', path: '/#barbers', role: 'Public / Customer', description: 'Profil hairdresser dan keahlian spesialisasi.' },
       { title: 'Sistem Reservasi Dinamis', path: '/#booking', role: 'Public / Customer', description: 'Form pemesanan jadwal terhubung WhatsApp.' },
-      { title: 'Ulasan Pelanggan', path: '/#reviews', role: 'Public / Customer', description: 'Ulasan dan penilaian kepuasan pelanggan.' },
       { title: 'Lokasi Jl. Perwira Solok', path: '/#location', role: 'Public / Customer', description: 'Peta Google Maps dan rute Jl. Perwira Kota Solok.' },
     ],
   },

@@ -614,7 +614,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 settings={settings}
                 switchFeedback={switchFeedback}
                 onToggleMasterSwitch={handleToggleMasterSwitch}
-                onOpenWalkInModal={() => setWalkInModalOpen(true)}
               />
             )}
 

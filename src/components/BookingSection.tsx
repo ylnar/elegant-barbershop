@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import {
   Scissors,
   Calendar,
-  Clock,
   User,
   Phone,
   Sparkles,
@@ -16,7 +15,6 @@ import {
   MessageCircle,
   Navigation,
   MapPin,
-  Users,
 } from 'lucide-react';
 import { SystemSettings, Service, Barber, Booking } from '../types';
 import { api } from '../services/api';
@@ -237,9 +235,6 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
       id="booking"
       className="py-16 sm:py-24 bg-[#0A0A0F] border-t border-[#1C1C26] relative overflow-hidden"
     >
-      {/* Anchor alias */}
-      <div id="queue" className="absolute -top-20" />
-
       {/* Decorative ambient lighting */}
       <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-[#D4AF37]/5 rounded-full blur-[140px] pointer-events-none" />
 
@@ -249,7 +244,7 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
         <div className="text-center space-y-3 max-w-3xl mx-auto">
           <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-[#1A1A26] border border-[#D4AF37]/40 text-[#D4AF37] text-xs font-semibold shadow-md">
             <Sparkles className="w-3.5 h-3.5 text-[#D4AF37]" />
-            <span>SISTEM RESERVASI &amp; ANTREAN DIGITAL</span>
+            <span>SISTEM RESERVASI DIGITAL</span>
           </div>
 
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-white font-serif tracking-tight">
@@ -281,33 +276,6 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                 {settings.walkInOnlyMessage ||
                   'Reservasi online saat ini sedang dialihkan. Anda dapat langsung datang ke outlet kami di Jl. Perwira Kota Solok.'}
               </p>
-            </div>
-
-            {/* Live Queue Status Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-lg mx-auto pt-2">
-              <div className="p-4 rounded-2xl bg-[#0D0D14] border border-stone-800 flex items-center gap-3.5 text-left">
-                <div className="w-10 h-10 rounded-xl bg-[#D4AF37]/10 border border-[#D4AF37]/30 flex items-center justify-center text-[#D4AF37] shrink-0">
-                  <Users className="w-5 h-5" />
-                </div>
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-stone-400 block">Antrean Lounge Saat Ini</span>
-                  <span className="text-lg font-bold text-white font-serif">
-                    {settings.currentWalkInQueue} Tamu Menunggu
-                  </span>
-                </div>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-[#0D0D14] border border-stone-800 flex items-center gap-3.5 text-left">
-                <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
-                  <Clock className="w-5 h-5" />
-                </div>
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-stone-400 block">Estimasi Waktu Tunggu</span>
-                  <span className="text-lg font-bold text-white font-serif">
-                    ~{settings.estimatedWalkInWaitMinutes} Menit
-                  </span>
-                </div>
-              </div>
             </div>
 
             <div className="flex flex-wrap items-center justify-center gap-3 pt-3">

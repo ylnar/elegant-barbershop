@@ -1,19 +1,17 @@
 import React from 'react';
-import { Radio, CheckCircle, Plus } from 'lucide-react';
+import { Radio, CheckCircle } from 'lucide-react';
 import { SystemSettings } from '../../../types';
 
 interface MasterSwitchTabProps {
   settings: SystemSettings;
   switchFeedback: string | null;
   onToggleMasterSwitch: () => void;
-  onOpenWalkInModal: () => void;
 }
 
 export const MasterSwitchTab: React.FC<MasterSwitchTabProps> = ({
   settings,
   switchFeedback,
   onToggleMasterSwitch,
-  onOpenWalkInModal,
 }) => {
   return (
     <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-200">
@@ -87,14 +85,7 @@ export const MasterSwitchTab: React.FC<MasterSwitchTabProps> = ({
         </div>
       </div>
 
-      {/* Walk-In Entry Button */}
-      <button
-        onClick={onOpenWalkInModal}
-        className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-[#252538] hover:bg-[#D4AF37] text-stone-200 hover:text-stone-950 font-bold text-xs uppercase tracking-wider transition-all cursor-pointer"
-      >
-        <Plus className="w-4 h-4" />
-        <span>Catat Tamu Walk-in Baru</span>
-      </button>
+
     </div>
   );
 };
