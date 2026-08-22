@@ -142,5 +142,6 @@ Aplikasi menggunakan pola ketahanan ganda (*dual-tier persistence resilience*):
 - **Build**: `npm run build` (Menghasilkan frontend statis di `dist/` dan server terbundle di `dist/server.cjs` via `esbuild`).
 - **Start**: `node dist/server.cjs` (Menjalankan server pada port `3000`).
 
-### 5.2 Vercel / Netlify (Serverless / Static Deployments)
-- Konfigurasi `vercel.json` disediakan dengan route rewrites ke `index.html` (SPA fallback) dan caching header untuk aset statis.
+### 5.2 Vercel (Serverless / Static Deployment)
+- Konfigurasi `vercel.json` disediakan dengan route rewrites `/api/*` ke serverless function (`api/index.ts` via `serverless-http`), SPA fallback ke `index.html`, serta caching header untuk aset statis.
+- Environment variables (`GEMINI_API_KEY`, kredensial Supabase) dikonfigurasi melalui dashboard Vercel.

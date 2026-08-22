@@ -146,7 +146,7 @@ export const supabaseConfig = {
     }
     return issues.length > 0
       ? issues
-      : ['Konfigurasi terbaca, namun kredensial ditolak — cek nilai di dashboard Netlify'];
+      : ['Konfigurasi terbaca, namun kredensial ditolak — cek nilai di dashboard Vercel'];
   },
 };
 
