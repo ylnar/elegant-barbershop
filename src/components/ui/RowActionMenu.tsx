@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { MoreVertical, type LucideIcon } from 'lucide-react';
 
 export interface RowMenuItem {
@@ -17,13 +17,18 @@ interface RowActionMenuProps {
   ariaLabel?: string;
 }
 
-const MENU_WIDTH = 180;
+const MENU_WIDTH = 200;
 
 /**
  * Menu aksi titik-3 untuk baris tabel/kartu.
- * Menggunakan position:fixed berbasis rect tombol sehingga tidak pernah
- * terpotong oleh overflow-hidden pada kontainer tabel/kartu.
- * Menutup otomatis saat klik di luar, tekan Escape, scroll, atau resize.
+ *
+ * - Posisi DIHITUNG SAAT KLIK (bukan setelah render) sehingga kotak
+ *   selalu muncul tepat di tempat pada frame pertama — tanpa lompatan.
+ * - Memakai position:fixed berbasis rect tombol sehingga tidak pernah
+ *   terpotong overflow-hidden milik kontainer tabel/kartu.
+ * - Animasi pop memakai keyframes custom (.menu-pop) karena plugin
+ *   tailwindcss-animate tidak terpasang di proyek ini.
+ * - Menutup otomatis saat klik di luar, Escape, scroll, atau resize.
  */
 export const RowActionMenu: React.FC<RowActionMenuProps> = ({
   itemId,
@@ -34,31 +39,43 @@ export const RowActionMenu: React.FC<RowActionMenuProps> = ({
 }) => {
   const wrapRef = useRef<HTMLDivElement>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
-  const [pos, setPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
+  const [pos, setPos] = useState<{ top: number; left: number }>({ top: -9999, left: -9999 });
+  const [upward, setUpward] = useState(false);
 
-  // Posisi menu mengikuti posisi tombol di viewport
-  useLayoutEffect(() => {
-    if (!isOpen) return;
+  /**
+   * Buka/tutup menu. Posisi final dihitung dari rect tombol PADA SAAT
+   * EVENT KLIK, lalu disimpan sebelum state open berubah — jadi render
+   * pertama menu sudah berada di koordinat yang benar.
+   */
+  const handleToggle = () => {
+    if (isOpen) {
+      onToggle(null);
+      return;
+    }
+
     const btn = btnRef.current;
     if (!btn) return;
     const rect = btn.getBoundingClientRect();
-    const estimatedHeight = items.length * 40 + 12;
+    const estimatedHeight = items.length * 42 + 14;
 
-    let top = rect.bottom + 6;
-    if (top + estimatedHeight > window.innerHeight - 8) {
-      top = Math.max(8, rect.top - estimatedHeight - 6);
+    // Default terbuka ke bawah; balik ke atas bila ruang bawah kurang
+    let nextTop = rect.bottom + 6;
+    let nextUpward = false;
+    if (nextTop + estimatedHeight > window.innerHeight - 8) {
+      nextTop = Math.max(8, rect.top - estimatedHeight - 6);
+      nextUpward = true;
     }
 
-    let left = rect.right - MENU_WIDTH;
-    if (left < 8) left = 8;
-    if (left + MENU_WIDTH > window.innerWidth - 8) {
-      left = window.innerWidth - MENU_WIDTH - 8;
-    }
+    // Jaga menu tetap di dalam viewport secara horizontal
+    let nextLeft = rect.right - MENU_WIDTH;
+    nextLeft = Math.max(8, Math.min(nextLeft, window.innerWidth - MENU_WIDTH - 8));
 
-    setPos({ top, left });
-  }, [isOpen, items.length]);
+    setPos({ top: nextTop, left: nextLeft });
+    setUpward(nextUpward);
+    onToggle(itemId);
+  };
 
-  // Tutup saat klik luar / Escape / scroll / resize
+  // Tutup saat klik di luar / Escape / scroll / resize
   useEffect(() => {
     if (!isOpen) return;
     const close = () => onToggle(null);
@@ -94,9 +111,9 @@ export const RowActionMenu: React.FC<RowActionMenuProps> = ({
         aria-label={ariaLabel ?? 'Menu aksi'}
         onClick={(e) => {
           e.stopPropagation();
-          onToggle(isOpen ? null : itemId);
+          handleToggle();
         }}
-        className={`p-2 rounded-lg border transition-colors cursor-pointer ${
+        className={`p-2 rounded-lg border transition-all duration-150 active:scale-90 cursor-pointer ${
           isOpen
             ? 'bg-[#D4AF37]/15 border-[#D4AF37]/50 text-[#D4AF37]'
             : 'bg-stone-900 border-stone-800 hover:bg-stone-800 text-stone-400 hover:text-white'
@@ -108,28 +125,38 @@ export const RowActionMenu: React.FC<RowActionMenuProps> = ({
       {isOpen && (
         <div
           role="menu"
+          aria-orientation="vertical"
           style={{ top: pos.top, left: pos.left, width: MENU_WIDTH }}
-          className="fixed z-[70] py-1.5 rounded-xl bg-[#16161F] border border-stone-700 shadow-2xl shadow-black/60 animate-in fade-in zoom-in-95 duration-100"
+          className={`fixed z-[70] p-1.5 rounded-2xl bg-[#17171F]/[0.98] backdrop-blur-sm border border-white/10 shadow-[0_16px_48px_-12px_rgba(0,0,0,0.8)] ${
+            upward ? 'menu-pop-up' : 'menu-pop'
+          }`}
         >
-          {items.map((item) => {
+          {items.map((item, idx) => {
             const Icon = item.icon;
+            const showDivider = item.danger && idx > 0;
             return (
-              <button
-                key={item.label}
-                type="button"
-                role="menuitem"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onToggle(null);
-                  item.onClick();
-                }}
-                className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-xs font-semibold transition-colors cursor-pointer ${
-                  item.danger ? 'text-rose-300 hover:bg-rose-500/15' : 'text-stone-200 hover:bg-white/5'
-                }`}
-              >
-                <Icon className={`w-3.5 h-3.5 shrink-0 ${item.danger ? 'text-rose-400' : 'text-stone-400'}`} />
-                <span className="truncate">{item.label}</span>
-              </button>
+              <React.Fragment key={item.label}>
+                {showDivider && <div className="my-1 mx-2 border-t border-white/[0.07]" />}
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onToggle(null);
+                    item.onClick();
+                  }}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-semibold transition-colors duration-150 active:scale-[0.98] cursor-pointer ${
+                    item.danger
+                      ? 'text-rose-300 hover:bg-rose-500/15'
+                      : 'text-stone-200 hover:bg-white/[0.06]'
+                  }`}
+                >
+                  <Icon
+                    className={`w-4 h-4 shrink-0 ${item.danger ? 'text-rose-400' : 'text-stone-400'}`}
+                  />
+                  <span className="truncate whitespace-nowrap">{item.label}</span>
+                </button>
+              </React.Fragment>
             );
           })}
         </div>
