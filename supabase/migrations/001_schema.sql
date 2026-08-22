@@ -69,6 +69,37 @@ CREATE TABLE IF NOT EXISTS public.barbers (
 CREATE INDEX IF NOT EXISTS idx_barbers_active ON public.barbers(is_deleted, is_active);
 CREATE INDEX IF NOT EXISTS idx_barbers_not_deleted ON public.barbers(is_deleted) WHERE is_deleted = FALSE;
 
+-- Ensure all columns exist (safe ALTER for existing tables)
+ALTER TABLE public.barbers ADD COLUMN IF NOT EXISTS phone VARCHAR(30);
+ALTER TABLE public.barbers ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT FALSE NOT NULL;
+ALTER TABLE public.barbers ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+ALTER TABLE public.services ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT FALSE NOT NULL;
+ALTER TABLE public.services ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT FALSE NOT NULL;
+ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT FALSE NOT NULL;
+ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+
+-- Drop unused columns from barbers (simplify schema)
+ALTER TABLE public.barbers DROP COLUMN IF EXISTS photo_url;
+ALTER TABLE public.barbers DROP COLUMN IF EXISTS nickname;
+ALTER TABLE public.barbers DROP COLUMN IF EXISTS role;
+ALTER TABLE public.barbers DROP COLUMN IF EXISTS experience_years;
+ALTER TABLE public.barbers DROP COLUMN IF EXISTS specialty;
+ALTER TABLE public.barbers DROP COLUMN IF EXISTS review_count;
+ALTER TABLE public.barbers DROP COLUMN IF EXISTS bio;
+ALTER TABLE public.barbers DROP COLUMN IF EXISTS rating;
+
+-- Drop unused columns from services
+ALTER TABLE public.services DROP COLUMN IF EXISTS image_url;
+
+-- Drop unused columns from categories
+ALTER TABLE public.categories DROP COLUMN IF EXISTS image_url;
+
+-- Drop admin_users triggers/views that may conflict
+DROP VIEW IF EXISTS public.v_booking_details;
+DROP VIEW IF EXISTS public.v_transaction_reports;
+
 -- ========================================================================
 -- 4. TABEL: bookings
 -- ========================================================================

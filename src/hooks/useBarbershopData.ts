@@ -2,6 +2,10 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { SystemSettings, Service, Barber, Booking, Transaction } from '../types';
 import { api } from '../services/api';
 import { subscribeToTable, isSupabaseConfigured } from '../services/supabaseClient';
+import { clearStaleCacheIfNeeded } from '../services/storage';
+
+// Clear stale localStorage cache on first load
+if (typeof window !== 'undefined') clearStaleCacheIfNeeded();
 
 export function useBarbershopData() {
   const [settings, setSettings] = useState<SystemSettings | null>(null);
