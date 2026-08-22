@@ -15,10 +15,8 @@ Salin Project URL, anon key, dan service_role key dari **Project Settings → AP
 
 ```env
 SUPABASE_URL="https://xxxxxxxx.supabase.co"
-VITE_SUPABASE_URL="https://xxxxxxxx.supabase.co"
 
 SUPABASE_ANON_KEY="..."
-VITE_SUPABASE_ANON_KEY="..."
 
 SUPABASE_SERVICE_ROLE_KEY="..."
 

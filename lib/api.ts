@@ -1,9 +1,8 @@
 import { NextResponse } from 'next/server';
 
 /**
- * Helper API Next.js — pengganti middleware Express lama.
- * Semua route handler memakai util di sini agar perilaku identik
- * dengan API sebelumnya.
+ * Helper API Next.js — util bersama untuk semua route handler
+ * (respons JSON, sanitasi input, rate limiting).
  */
 
 export function json(data: unknown, status = 200) {
