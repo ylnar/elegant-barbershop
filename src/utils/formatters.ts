@@ -104,7 +104,7 @@ export function generateBookingConfirmationLink(
   message += `Saya sudah membuat tiket reservasi dengan rincian berikut:\n\n`;
   message += `🔖 *Kode Reservasi:* ${bookingCode}\n`;
   message += `👤 *Nama:* ${customerName}\n`;
-  message += `✂️ *Layanan:* ${serviceName}\n`;
+  message += `✂ *Layanan:* ${serviceName}\n`;
   message += `💈 *Master Barber:* ${barberName}\n`;
   message += `📅 *Jadwal:* ${formatDateIndonesian(date)}\n`;
   message += `⏰ *Jam Datang:* ${timeSlot} WIB\n`;
@@ -130,7 +130,7 @@ export function generateBarberWhatsAppLink(
 
   const statusLabel = status === 'confirmed' ? '✅ TERKONFIRMASI'
     : status === 'in_service' ? '💇 SEDANG DILAYANI'
-    : status === 'completed' ? '✔️ SELESAI'
+    : status === 'completed' ? '✅ SELESAI'
     : status === 'cancelled' ? '❌ DIBATALKAN'
     : '⏳ PENDING';
 
@@ -168,7 +168,7 @@ export function generateCustomerWhatsAppLink(
       greeting = `Halo Kak *${customerName}* 👋`;
       body = `Reservasi Anda sudah *TERKONFIRMASI* ✅\n\n`;
       body += `🔖 *Kode:* ${bookingCode}\n`;
-      body += `✂️ *Layanan:* ${serviceName}\n`;
+      body += `✂ *Layanan:* ${serviceName}\n`;
       body += `💈 *Barber:* ${barberName}\n`;
       body += `📅 *Jadwal:* ${formatDateIndonesian(date)}, ${timeSlot} WIB\n\n`;
       body += `📍 *Lokasi:* Jl. Perwira, VI Suku, Kota Solok\n`;
@@ -178,15 +178,15 @@ export function generateCustomerWhatsAppLink(
       greeting = `Halo Kak *${customerName}* 👋`;
       body = `Saat ini Anda *SEDANG DILAYANI* 💇\n\n`;
       body += `🔖 *Kode:* ${bookingCode}\n`;
-      body += `✂️ *Layanan:* ${serviceName}\n`;
+      body += `✂ *Layanan:* ${serviceName}\n`;
       body += `💈 *Barber:* ${barberName}\n\n`;
       body += `_Mohon menunggu dengan sabar. Terima kasih 🙏_`;
       break;
     case 'completed':
       greeting = `Halo Kak *${customerName}* 👋`;
-      body = `Reservasi Anda sudah *SELESAI* ✔️\n\n`;
+      body = `Reservasi Anda sudah *SELESAI* ✅\n\n`;
       body += `🔖 *Kode:* ${bookingCode}\n`;
-      body += `✂️ *Layanan:* ${serviceName}\n`;
+      body += `✂ *Layanan:* ${serviceName}\n`;
       body += `💈 *Barber:* ${barberName}\n\n`;
       body += `Terima kasih sudah berkunjung ke *Elegant Barbershop Solok*! 🙏\n`;
       body += `Semoga puas dengan hasilnya. Sampai jumpa lagi! 💈✨`;
@@ -195,14 +195,14 @@ export function generateCustomerWhatsAppLink(
       greeting = `Halo Kak *${customerName}* 👋`;
       body = `Reservasi Anda *DIBATALKAN* ❌\n\n`;
       body += `🔖 *Kode:* ${bookingCode}\n`;
-      body += `✂️ *Layanan:* ${serviceName}\n\n`;
+      body += `✂ *Layanan:* ${serviceName}\n\n`;
       body += `Jika ada yang salah, silakan buat reservasi baru. Terima kasih 🙏`;
       break;
     default: // pending
       greeting = `Halo Kak *${customerName}* 👋`;
       body = `Reservasi Anda sedang *MENUNGGU KONFIRMASI* ⏳\n\n`;
       body += `🔖 *Kode:* ${bookingCode}\n`;
-      body += `✂️ *Layanan:* ${serviceName}\n`;
+      body += `✂ *Layanan:* ${serviceName}\n`;
       body += `💈 *Barber:* ${barberName}\n`;
       body += `📅 *Jadwal:* ${formatDateIndonesian(date)}, ${timeSlot} WIB\n\n`;
       body += `_Kami akan segera mengkonfirmasi reservasi Anda. Mohon tunggu 🙏_`;
