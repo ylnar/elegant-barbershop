@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { getServerSupabase } from '../supabase.ts';
+import { supabaseConfig } from '../config.ts';
 import { sanitizeString } from '../middleware/security.ts';
 
 export const authRouter = Router();
@@ -20,7 +21,7 @@ authRouter.post('/login', async (req: Request, res: Response) => {
     const supabase = getServerSupabase();
     if (!supabase) {
       return res.status(503).json({
-        error: 'Database Supabase belum terkonfigurasi. Periksa .env dan restart server.',
+        error: `Database Supabase belum terkonfigurasi di server (${supabaseConfig.diagnose().join('; ')}).`,
       });
     }
 

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Store, ArrowRight, Clock, Scissors, MapPin, Calendar } from 'lucide-react';
 import { SystemSettings } from '../types';
-import heroInteriorImg from '../assets/images/solok_barber_vibes_1787030306601.jpg';
+import heroInteriorImg from '../assets/images/atmosphere.webp';
 
 interface HeroSectionProps {
   settings: SystemSettings;

@@ -1,7 +1,7 @@
 import React from 'react';
 import { MapPin, Clock, Phone, Instagram, Navigation, ExternalLink, Store } from 'lucide-react';
 import { SystemSettings } from '../types';
-import storefrontImg from '../assets/images/solok_real_storefront_1787078047564.jpg';
+import storefrontImg from '../assets/images/storefront.webp';
 
 interface LocationSectionProps {
   settings: SystemSettings;

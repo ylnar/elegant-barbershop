@@ -9,7 +9,7 @@ import {
   Calendar,
 } from 'lucide-react';
 import { SystemSettings } from '../types';
-import logoImg from '../assets/images/barbershop_solok_logo_1786865605934.jpg';
+import logoImg from '../assets/images/logo.webp';
 
 interface NavbarProps {
   settings: SystemSettings;

@@ -13,7 +13,14 @@ function env(
   key: string,
   opts: { required?: boolean; default?: string; mask?: boolean } = {},
 ): string {
-  const val = process.env[key]?.trim() ?? '';
+  let val = process.env[key]?.trim() ?? '';
+  // Tahan salah paste di dashboard (nilai dibungkus kutip literal)
+  if (
+    (val.startsWith('"') && val.endsWith('"')) ||
+    (val.startsWith("'") && val.endsWith("'"))
+  ) {
+    val = val.slice(1, -1).trim();
+  }
   if (!val && opts.required) {
     throw new Error(
       `[Config] Env var "${key}" wajib diisi. Lihat .env.example atau dokumentasi.`,
@@ -120,6 +127,26 @@ export const supabaseConfig = {
 
   get isConfigured(): boolean {
     return Boolean(this.url && this.serverKey && this.url.startsWith('http'));
+  },
+
+  /** Deteksi detail masalah env Supabase untuk pesan error yang jelas */
+  diagnose(): string[] {
+    const issues: string[] = [];
+    if (!this.url) {
+      issues.push('SUPABASE_URL / VITE_SUPABASE_URL tidak terbaca oleh Functions');
+    } else if (!this.url.startsWith('http')) {
+      issues.push(`SUPABASE_URL tidak valid (harus diawali https://)`);
+    }
+    if (!this.serviceRoleKey) {
+      issues.push(
+        this.anonKey
+          ? 'SUPABASE_SERVICE_ROLE_KEY tidak terbaca (yang terdeteksi hanya anon key)'
+          : 'SUPABASE_SERVICE_ROLE_KEY & SUPABASE_ANON_KEY tidak terbaca',
+      );
+    }
+    return issues.length > 0
+      ? issues
+      : ['Konfigurasi terbaca, namun kredensial ditolak — cek nilai di dashboard Netlify'];
   },
 };
 

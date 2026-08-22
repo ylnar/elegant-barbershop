@@ -1,7 +1,6 @@
 import React from 'react';
 import { Service, SystemSettings } from '../types';
 import { Store, Phone, Calendar, ArrowRight, Check } from 'lucide-react';
-import interiorImg from '../assets/images/interior_solok_1787022888667.jpg';
 
 interface ServicesSectionProps {
   services: Service[];
@@ -40,16 +39,10 @@ export const ServicesSection: React.FC<ServicesSectionProps> = ({
         {/* Authentic Barbershop Price List Board with Image Overlay Background */}
         <div className="relative rounded-3xl overflow-hidden border border-stone-800 shadow-2xl bg-[#0F0F16]">
           
-          {/* Real Barbershop Image Overlay Background */}
+          {/* Atmospheric Background Overlay */}
           <div className="absolute inset-0 z-0 pointer-events-none">
-            <img
-              src={interiorImg}
-              alt="Suasana Elegant Barbershop Solok"
-              referrerPolicy="no-referrer"
-              className="w-full h-full object-cover object-center filter brightness-[0.2] contrast-125 scale-105"
-            />
             {/* Deep atmospheric gradient overlay for maximum readability */}
-            <div className="absolute inset-0 bg-gradient-to-b from-[#0A0A0F]/95 via-[#0F0F16]/90 to-[#0A0A0F]/95 backdrop-blur-[2px]" />
+            <div className="absolute inset-0 bg-gradient-to-b from-[#0A0A0F]/95 via-[#0F0F16]/90 to-[#0A0A0F]/95" />
             <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-[#D4AF37]/10 via-transparent to-transparent" />
           </div>
 
