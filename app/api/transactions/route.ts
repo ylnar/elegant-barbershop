@@ -16,7 +16,7 @@ export async function GET(req: Request) {
 
   if (supabase) {
     try {
-      let query = supabase.from('transactions').select('*').order('created_at', { ascending: false });
+      let query = supabase.from('transactions').select('*').eq('is_deleted', false).order('created_at', { ascending: false });
 
       if (date) {
         query = query.gte('created_at', `${date}T00:00:00`).lte('created_at', `${date}T23:59:59`);
