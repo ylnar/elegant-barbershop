@@ -54,6 +54,9 @@ export const TransactionsTab: React.FC<TransactionsTabProps> = ({
   const [deleteModalOpen, setDeleteModalOpen] = useState<boolean>(false);
   const [transactionToDelete, setTransactionToDelete] = useState<Transaction | null>(null);
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
+  const [selectedTransactionIds, setSelectedTransactionIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState<boolean>(false);
+  const [isBulkDeleting, setIsBulkDeleting] = useState<boolean>(false);
 
   // Export Excel Double-Confirm State
   const [exportConfirmOpen, setExportConfirmOpen] = useState<boolean>(false);
@@ -139,6 +142,52 @@ export const TransactionsTab: React.FC<TransactionsTabProps> = ({
       return matchSearch && matchDate && matchMethod;
     });
   }, [transactions, historySearch, historyDateFilter, historyMethodFilter]);
+
+  const allFilteredSelected =
+    filteredTransactions.length > 0 && filteredTransactions.every((t) => selectedTransactionIds.has(t.id));
+
+  const toggleTransactionSelection = (id: string) => {
+    setSelectedTransactionIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAllFilteredTransactions = () => {
+    setSelectedTransactionIds((current) => {
+      const next = new Set(current);
+      if (allFilteredSelected) filteredTransactions.forEach((t) => next.delete(t.id));
+      else filteredTransactions.forEach((t) => next.add(t.id));
+      return next;
+    });
+  };
+
+  const handleConfirmBulkDelete = async () => {
+    const ids = filteredTransactions.filter((t) => selectedTransactionIds.has(t.id)).map((t) => t.id);
+    if (ids.length === 0) return;
+    setIsBulkDeleting(true);
+    let success = 0;
+    for (const id of ids) {
+      try {
+        await api.deleteTransaction(id);
+        success += 1;
+      } catch {
+        // Failed records remain selected for retry.
+      }
+    }
+    await onRefreshData();
+    setSelectedTransactionIds((current) => {
+      const next = new Set(current);
+      ids.forEach((id) => next.delete(id));
+      return next;
+    });
+    setIsBulkDeleting(false);
+    setBulkDeleteConfirmOpen(false);
+    if (success === ids.length) toast.success(`${success} transaksi berhasil dihapus.`);
+    else toast.error(`${success} transaksi terhapus, ${ids.length - success} gagal dihapus.`);
+  };
 
   // Reset page when filters change
   const resetPage = useCallback(() => setCurrentPage(1), []);
@@ -382,10 +431,30 @@ export const TransactionsTab: React.FC<TransactionsTabProps> = ({
 
       {/* Transactions List */}
       <div className="space-y-3">
-        <div className="flex items-center justify-between px-1">
-          <span className="text-xs font-bold text-stone-400 uppercase tracking-wider">
-            Daftar Riwayat Transaksi ({filteredTransactions.length})
-          </span>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-1">
+          <div className="flex items-center gap-3">
+            <input
+              type="checkbox"
+              checked={allFilteredSelected}
+              onChange={toggleAllFilteredTransactions}
+              disabled={filteredTransactions.length === 0}
+              className="h-4 w-4 accent-[#D4AF37] cursor-pointer disabled:cursor-not-allowed"
+              aria-label="Pilih semua transaksi yang tampil"
+            />
+            <span className="text-xs font-bold text-stone-400 uppercase tracking-wider">
+              Daftar Riwayat Transaksi ({filteredTransactions.length})
+            </span>
+          </div>
+          {selectedTransactionIds.size > 0 && (
+            <button
+              type="button"
+              onClick={() => setBulkDeleteConfirmOpen(true)}
+              className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-bold transition-colors cursor-pointer"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Hapus Terpilih ({selectedTransactionIds.size})</span>
+            </button>
+          )}
         </div>
 
         {filteredTransactions.length === 0 ? (
@@ -410,6 +479,13 @@ export const TransactionsTab: React.FC<TransactionsTabProps> = ({
                   className="p-3.5 rounded-2xl bg-[#14141E] border border-stone-800 shadow-md"
                 >
                   <div className="flex items-start justify-between gap-2.5">
+                    <input
+                      type="checkbox"
+                      checked={selectedTransactionIds.has(t.id)}
+                      onChange={() => toggleTransactionSelection(t.id)}
+                      className="mt-1 h-4 w-4 accent-[#D4AF37] cursor-pointer"
+                      aria-label={`Pilih transaksi ${t.invoiceNumber}`}
+                    />
                     {/* Left: Invoice, Customer, Time */}
                     <div className="min-w-0 flex-1 space-y-1">
                       <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-stone-900 border border-stone-800 text-[#D4AF37]">
@@ -468,6 +544,7 @@ export const TransactionsTab: React.FC<TransactionsTabProps> = ({
               <table className="w-full text-left text-xs text-stone-300">
                 <thead className="bg-[#0E0E16] text-[11px] uppercase tracking-wider text-stone-400 border-b border-stone-800">
                   <tr>
+                    <th className="py-3.5 px-4 font-semibold">Pilih</th>
                     <th className="py-3.5 px-4 font-semibold">No. Invoice</th>
                     <th className="py-3.5 px-4 font-semibold">Waktu</th>
                     <th className="py-3.5 px-4 font-semibold">Pelanggan</th>
@@ -481,6 +558,15 @@ export const TransactionsTab: React.FC<TransactionsTabProps> = ({
                       key={t.id}
                       className="hover:bg-[#1A1A28] transition-colors group"
                     >
+                      <td className="py-3 px-4">
+                        <input
+                          type="checkbox"
+                          checked={selectedTransactionIds.has(t.id)}
+                          onChange={() => toggleTransactionSelection(t.id)}
+                          className="h-4 w-4 accent-[#D4AF37] cursor-pointer"
+                          aria-label={`Pilih transaksi ${t.invoiceNumber}`}
+                        />
+                      </td>
                       <td className="py-3 px-4 font-mono font-bold text-[#D4AF37]">
                         {t.invoiceNumber}
                       </td>
@@ -627,6 +713,19 @@ export const TransactionsTab: React.FC<TransactionsTabProps> = ({
           setDeleteModalOpen(false);
           setTransactionToDelete(null);
         }}
+      />
+
+      <ConfirmModal
+        isOpen={bulkDeleteConfirmOpen}
+        title="Hapus Transaksi Terpilih"
+        description={`${selectedTransactionIds.size} transaksi yang dipilih akan dihapus dari database dan tidak lagi masuk ke riwayat omzet. Lanjutkan?`}
+        confirmText="Ya, Hapus Semua"
+        cancelText="Batal"
+        variant="danger"
+        icon="trash"
+        isLoading={isBulkDeleting}
+        onConfirm={handleConfirmBulkDelete}
+        onClose={() => setBulkDeleteConfirmOpen(false)}
       />
 
       {/* Export Excel Double-Confirm Modal */}

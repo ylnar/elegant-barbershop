@@ -419,7 +419,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex bg-[#08080C] text-stone-200 overflow-hidden select-none">
+    <div className="fixed inset-0 z-50 flex flex-col sm:flex-row bg-[#08080C] text-stone-200 overflow-hidden select-none" style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
       {/* Mobile Sidebar Overlay */}
       {sidebarOpen && (
         <div
@@ -430,7 +430,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
       {/* ASIDE */}
       <aside
-        className={`fixed lg:static top-0 bottom-0 left-0 z-50 w-72 bg-[#0E0E16] border-r border-[#1E1E2C] flex flex-col justify-between transition-transform duration-300 ease-in-out ${
+        className={`fixed lg:static top-0 bottom-0 left-0 z-50 w-72 max-w-[85vw] bg-[#0E0E16] border-r border-[#1E1E2C] flex flex-col justify-between transition-transform duration-300 ease-in-out shrink-0 ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         }`}
       >
@@ -522,7 +522,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         </nav>
 
         {/* Aside Footer */}
-        <div className="p-4 border-t border-[#1A1A26] bg-[#0A0A10] space-y-2">
+        <div className="p-4 border-t border-[#1A1A26] bg-[#0A0A10] space-y-2 pb-[calc(1rem+env(safe-area-inset-bottom))]">
           <div className="flex items-center gap-2 text-[11px] text-stone-400 px-1">
             <Clock className="w-3.5 h-3.5 text-[#D4AF37]" />
             <span>Jam Operasi: 10:00 - 22:00</span>
@@ -541,24 +541,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       {/* RIGHT MAIN CONTAINER */}
       <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden bg-[#08080C]">
         {/* Top Header Bar */}
-        <header className="h-16 px-4 sm:px-8 border-b border-[#1A1A26] bg-[#0E0E16]/80 backdrop-blur-md flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-3">
+        <header className="h-14 sm:h-16 px-3 sm:px-6 lg:px-8 border-b border-[#1A1A26] bg-[#0E0E16]/80 backdrop-blur-md flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <button
               onClick={() => setSidebarOpen(true)}
-              className="lg:hidden p-2 rounded-xl bg-[#181824] border border-stone-800 text-stone-200 hover:text-white cursor-pointer"
+              className="lg:hidden p-2 rounded-xl bg-[#181824] border border-stone-800 text-stone-200 hover:text-white cursor-pointer shrink-0"
               aria-label="Buka Menu"
             >
               <Menu className="w-5 h-5" />
             </button>
 
-            <div>
-              <h2 className="text-base font-bold text-white font-serif tracking-wide">
+            <div className="min-w-0">
+              <h2 className="text-sm sm:text-base font-bold text-white font-serif tracking-wide truncate">
                 {navGroups.flatMap((g) => g.items).find((n) => n.id === activeTab)?.label}
               </h2>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
             {currentUser && (
               <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#1A1A26] border border-stone-800">
                 <div className="w-6 h-6 rounded-full bg-[#D4AF37]/20 flex items-center justify-center">
@@ -575,16 +575,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
             <button
               onClick={() => setLogoutModalOpen(true)}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-semibold transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 px-2.5 sm:px-3.5 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-semibold transition-colors cursor-pointer"
             >
               <LogOut className="w-3.5 h-3.5" />
-              <span>Tutup Panel</span>
+              <span className="hidden sm:inline">Tutup Panel</span>
             </button>
           </div>
         </header>
 
         {/* Content */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-8">
+        <main className="flex-1 overflow-y-auto p-3 sm:p-6 lg:p-8">
           <div className="max-w-6xl mx-auto">
             {activeTab === 'transactions' && (
               <TransactionsTab
@@ -604,6 +604,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 onStatusChange={handleBookingStatusChange}
                 onOpenBookingModal={() => setAdminBookingModalOpen(true)}
                 onOpenWalkInModal={() => setWalkInModalOpen(true)}
+                onRefreshData={onRefreshData}
                 onRequestDeleteBooking={(b) => setBookingToDelete(b)}
                 onRequestClearHistory={() => setClearHistoryOpen(true)}
               />

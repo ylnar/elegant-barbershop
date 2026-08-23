@@ -12,10 +12,12 @@ import {
   Copy,
 } from 'lucide-react';
 import { Booking, BookingStatus } from '../../../types';
+import { api } from '../../../services/api';
 import { formatIDR, formatDateIndonesian, getStatusBadge, generateBarberWhatsAppLink, generateCustomerWhatsAppLink, getLocalTodayStr } from '../../../utils/formatters';
 import { Barber } from '../../../types';
 import { RowActionMenu } from '../../ui/RowActionMenu';
 import { BookingDetailModal } from '../modals/BookingDetailModal';
+import { ConfirmModal } from '../modals/ConfirmModal';
 import { toast } from '../../ui/Toast';
 
 const ACTIVE_STATUSES: BookingStatus[] = ['pending', 'confirmed', 'in_service'];
@@ -27,6 +29,7 @@ interface BookingsTabProps {
   onStatusChange: (bookingId: string, status: BookingStatus) => void;
   onOpenBookingModal: () => void;
   onOpenWalkInModal: () => void;
+  onRefreshData: () => Promise<void>;
   onRequestDeleteBooking: (booking: Booking) => void;
   onRequestClearHistory: () => void;
 }
@@ -40,6 +43,7 @@ export const BookingsTab: React.FC<BookingsTabProps> = ({
   onStatusChange,
   onOpenBookingModal,
   onOpenWalkInModal,
+  onRefreshData,
   onRequestDeleteBooking,
   onRequestClearHistory,
 }) => {
@@ -57,6 +61,9 @@ export const BookingsTab: React.FC<BookingsTabProps> = ({
   // Detail Modal State
   const [detailModalOpen, setDetailModalOpen] = useState<boolean>(false);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  const [selectedBookingIds, setSelectedBookingIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState<boolean>(false);
+  const [isBulkDeleting, setIsBulkDeleting] = useState<boolean>(false);
 
   // Menu titik-3: hanya satu menu yang boleh terbuka di seluruh daftar
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
@@ -100,6 +107,52 @@ export const BookingsTab: React.FC<BookingsTabProps> = ({
     const start = (page - 1) * ITEMS_PER_PAGE;
     return filteredBookings.slice(start, start + ITEMS_PER_PAGE);
   }, [filteredBookings, page]);
+
+  const allFilteredSelected =
+    filteredBookings.length > 0 && filteredBookings.every((booking) => selectedBookingIds.has(booking.id));
+
+  const toggleBookingSelection = (id: string) => {
+    setSelectedBookingIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAllFilteredBookings = () => {
+    setSelectedBookingIds((current) => {
+      const next = new Set(current);
+      if (allFilteredSelected) filteredBookings.forEach((booking) => next.delete(booking.id));
+      else filteredBookings.forEach((booking) => next.add(booking.id));
+      return next;
+    });
+  };
+
+  const handleConfirmBulkDelete = async () => {
+    const ids = filteredBookings.filter((booking) => selectedBookingIds.has(booking.id)).map((booking) => booking.id);
+    if (ids.length === 0) return;
+    setIsBulkDeleting(true);
+    let success = 0;
+    for (const id of ids) {
+      try {
+        await api.deleteBooking(id);
+        success += 1;
+      } catch {
+        // Failed records remain selected for retry.
+      }
+    }
+    await onRefreshData();
+    setSelectedBookingIds((current) => {
+      const next = new Set(current);
+      ids.forEach((id) => next.delete(id));
+      return next;
+    });
+    setIsBulkDeleting(false);
+    setBulkDeleteConfirmOpen(false);
+    if (success === ids.length) toast.success(`${success} reservasi berhasil dihapus.`);
+    else toast.error(`${success} reservasi terhapus, ${ids.length - success} gagal dihapus.`);
+  };
 
   const handleSearch = (val: string) => { setSearchQuery(val); };
   const handleFilterDate = (val: string) => { setBookingFilterDate(val); };
@@ -275,6 +328,33 @@ export const BookingsTab: React.FC<BookingsTabProps> = ({
         </div>
       </div>
 
+      {/* Selection Actions */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-1">
+        <div className="flex items-center gap-3">
+          <input
+            type="checkbox"
+            checked={allFilteredSelected}
+            onChange={toggleAllFilteredBookings}
+            disabled={filteredBookings.length === 0}
+            className="h-4 w-4 accent-[#D4AF37] cursor-pointer disabled:cursor-not-allowed"
+            aria-label="Pilih semua reservasi yang tampil"
+          />
+          <span className="text-xs font-bold text-stone-400 uppercase tracking-wider">
+            Pilih Semua Reservasi ({filteredBookings.length})
+          </span>
+        </div>
+        {selectedBookingIds.size > 0 && (
+          <button
+            type="button"
+            onClick={() => setBulkDeleteConfirmOpen(true)}
+            className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-bold transition-colors cursor-pointer"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>Hapus Terpilih ({selectedBookingIds.size})</span>
+          </button>
+        )}
+      </div>
+
       {/* Responsive Bookings: Mobile Cards + Desktop Table */}
       <div className="space-y-3">
         {/* 1. MOBILE CARD VIEW */}
@@ -294,9 +374,18 @@ export const BookingsTab: React.FC<BookingsTabProps> = ({
                 >
                   {/* Top Bar: Code & Schedule */}
                   <div className="flex items-center justify-between border-b border-stone-800/80 pb-2">
-                    <span className="font-mono font-bold text-xs text-[#D4AF37]">
-                      {b.bookingCode}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={selectedBookingIds.has(b.id)}
+                        onChange={() => toggleBookingSelection(b.id)}
+                        className="h-4 w-4 accent-[#D4AF37] cursor-pointer"
+                        aria-label={`Pilih reservasi ${b.bookingCode}`}
+                      />
+                      <span className="font-mono font-bold text-xs text-[#D4AF37]">
+                        {b.bookingCode}
+                      </span>
+                    </div>
                     <div className="flex items-center gap-1.5 text-xs text-stone-200">
                       <Calendar className="w-3 h-3 text-[#D4AF37]" />
                       <span className="font-semibold">{formatDateIndonesian(b.date)}</span>
@@ -359,6 +448,7 @@ export const BookingsTab: React.FC<BookingsTabProps> = ({
             <table className="w-full text-left text-xs">
               <thead>
                 <tr className="bg-[#191926] border-b border-stone-800 text-stone-400 text-[11px] uppercase tracking-wider font-semibold">
+                  <th className="py-3 px-4">Pilih</th>
                   <th className="py-3 px-4">Kode &amp; Tamu</th>
                   <th className="py-3 px-4">Layanan &amp; Harga</th>
                   <th className="py-3 px-4">Barber</th>
@@ -370,7 +460,7 @@ export const BookingsTab: React.FC<BookingsTabProps> = ({
               <tbody className="divide-y divide-stone-800 text-stone-300">
                 {filteredBookings.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-8 text-center text-stone-500">
+                    <td colSpan={7} className="py-8 text-center text-stone-500">
                       {emptyMessage}
                     </td>
                   </tr>
@@ -380,6 +470,15 @@ export const BookingsTab: React.FC<BookingsTabProps> = ({
 
                     return (
                       <tr key={b.id} className="hover:bg-stone-800/30 transition-colors">
+                        <td className="py-3 px-4">
+                          <input
+                            type="checkbox"
+                            checked={selectedBookingIds.has(b.id)}
+                            onChange={() => toggleBookingSelection(b.id)}
+                            className="h-4 w-4 accent-[#D4AF37] cursor-pointer"
+                            aria-label={`Pilih reservasi ${b.bookingCode}`}
+                          />
+                        </td>
                         <td className="py-3 px-4">
                           <span className="font-mono font-bold text-[#D4AF37] block">
                             {b.bookingCode}
@@ -501,6 +600,19 @@ export const BookingsTab: React.FC<BookingsTabProps> = ({
           setSelectedBooking(null);
         }}
         onStatusChange={onStatusChange}
+      />
+
+      <ConfirmModal
+        isOpen={bulkDeleteConfirmOpen}
+        title="Hapus Reservasi Terpilih"
+        description={`${selectedBookingIds.size} reservasi yang dipilih akan dihapus dari database dan tidak lagi muncul di daftar. Lanjutkan?`}
+        confirmText="Ya, Hapus Semua"
+        cancelText="Batal"
+        variant="danger"
+        icon="trash"
+        isLoading={isBulkDeleting}
+        onConfirm={handleConfirmBulkDelete}
+        onClose={() => setBulkDeleteConfirmOpen(false)}
       />
     </div>
   );
