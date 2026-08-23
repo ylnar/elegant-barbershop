@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Service, Barber } from '../../../types';
 import { formatIDR, sanitizePhoneInput, isValidWhatsAppNumber } from '../../../utils/formatters';
+import { lookupCustomerByPhone } from '../../../services/customersService';
 
 interface WalkInFormModalProps {
   isOpen: boolean;
@@ -27,6 +28,50 @@ export const WalkInFormModal: React.FC<WalkInFormModalProps> = ({
   const [serviceId, setServiceId] = useState(services[0]?.id || '');
   const [barberId, setBarberId] = useState('any');
   const [submitting, setSubmitting] = useState(false);
+  const [customerFound, setCustomerFound] = useState<boolean | null>(null);
+  const [customerFoundName, setCustomerFoundName] = useState<string>('');
+  const [isLookingUp, setIsLookingUp] = useState<boolean>(false);
+  const [hasAutoFilled, setHasAutoFilled] = useState<boolean>(false);
+
+  // Debounced phone lookup
+  useEffect(() => {
+    if (!customerPhone || customerPhone.length < 10 || !isValidWhatsAppNumber(customerPhone)) {
+      setCustomerFound(null);
+      setCustomerFoundName('');
+      setHasAutoFilled(false);
+      return;
+    }
+    if (hasAutoFilled) return;
+
+    let cancelled = false;
+    const timeoutId = setTimeout(async () => {
+      setIsLookingUp(true);
+      try {
+        const result = await lookupCustomerByPhone(customerPhone);
+        if (cancelled) return;
+        if (result && result.name) {
+          setCustomerFound(true);
+          setCustomerFoundName(result.name);
+          if (!customerName.trim()) {
+            setCustomerName(result.name);
+            setHasAutoFilled(true);
+          }
+        } else {
+          setCustomerFound(false);
+          setCustomerFoundName('');
+          setHasAutoFilled(false);
+        }
+      } catch {
+        if (!cancelled) {
+          setCustomerFound(false);
+          setCustomerFoundName('');
+        }
+      } finally {
+        if (!cancelled) setIsLookingUp(false);
+      }
+    }, 600);
+    return () => { cancelled = true; clearTimeout(timeoutId); };
+  }, [customerPhone, customerName, hasAutoFilled]);
 
   if (!isOpen) return null;
 
@@ -85,11 +130,19 @@ export const WalkInFormModal: React.FC<WalkInFormModalProps> = ({
                   : 'border-stone-700 focus:border-[#D4AF37]'
               }`}
             />
-            {customerPhone && !phoneValid && (
+            {customerPhone && !phoneValid ? (
               <span className="text-[10px] text-rose-400 block mt-1">
                 Format: 08xx / 628xx (10-13 digit).
               </span>
-            )}
+            ) : isLookingUp ? (
+              <span className="text-[10px] text-sky-400 block mt-1">
+                Mengecek data pelanggan...
+              </span>
+            ) : customerFound === true ? (
+              <span className="text-[10px] text-emerald-400 block mt-1">
+                ✓ Pelanggan dikenali: {customerFoundName}
+              </span>
+            ) : null}
           </div>
 
           <div>

@@ -8,6 +8,7 @@ import {
   dbDeleteBooking,
   getSupabaseClient,
 } from './supabaseClient';
+import { upsertCustomer } from './customersService';
 
 export const bookingsService = {
   async getBookings(filters?: { date?: string; status?: string; search?: string; code?: string }): Promise<Booking[]> {
@@ -111,6 +112,17 @@ export const bookingsService = {
       totalAmount: servicePrice,
       isWalkIn: bookingData.isWalkIn,
     });
+
+    // Upsert customer to prevent duplicates
+    try {
+      await upsertCustomer(
+        bookingData.customerName,
+        bookingData.customerPhone,
+        bookingData.customerEmail
+      );
+    } catch {
+      // Non-blocking: customer upsert failure shouldn't block booking
+    }
 
     // Update local cache
     const bookings = getLocal<Booking[]>(STORAGE_KEYS.BOOKINGS, INITIAL_BOOKINGS);

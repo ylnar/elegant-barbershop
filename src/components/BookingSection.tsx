@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { SystemSettings, Service, Barber, Booking } from '../types';
 import { api } from '../services/api';
+import { lookupCustomerByPhone } from '../services/customersService';
 import { formatIDR, formatDateIndonesian, getStatusBadge, getLocalTodayStr, getLocalDateStr, sanitizePhoneInput, isValidWhatsAppNumber } from '../utils/formatters';
 
 interface BookingSectionProps {
@@ -91,6 +92,12 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
     }
   }, [activeServices, selectedServiceId]);
 
+  // Customer lookup state
+  const [customerFound, setCustomerFound] = useState<boolean | null>(null);
+  const [customerFoundName, setCustomerFoundName] = useState<string>('');
+  const [isLookingUp, setIsLookingUp] = useState<boolean>(false);
+  const [autoFilledPhone, setAutoFilledPhone] = useState<string>(''); // track which phone triggered auto-fill
+
   // UI status
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -105,6 +112,54 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
           b.date >= todayStr,
       )
     : undefined;
+
+  // Debounced phone lookup: auto-fill customer name when phone is entered
+  useEffect(() => {
+    if (!customerPhone || customerPhone.length < 10 || !isValidWhatsAppNumber(customerPhone)) {
+      setCustomerFound(null);
+      setCustomerFoundName('');
+      setAutoFilledPhone('');
+      return;
+    }
+
+    // Don't re-lookup if we already auto-filled for this exact phone
+    if (autoFilledPhone === customerPhone) return;
+
+    let cancelled = false;
+    const timeoutId = setTimeout(async () => {
+      setIsLookingUp(true);
+      try {
+        const result = await lookupCustomerByPhone(customerPhone);
+        if (cancelled) return;
+
+        if (result && result.name) {
+          setCustomerFound(true);
+          setCustomerFoundName(result.name);
+          // Auto-fill name only if name field is empty
+          if (!customerName.trim()) {
+            setCustomerName(result.name);
+            setAutoFilledPhone(customerPhone);
+          }
+        } else {
+          setCustomerFound(false);
+          setCustomerFoundName('');
+          setAutoFilledPhone('');
+        }
+      } catch {
+        if (!cancelled) {
+          setCustomerFound(false);
+          setCustomerFoundName('');
+        }
+      } finally {
+        if (!cancelled) setIsLookingUp(false);
+      }
+    }, 600); // 600ms debounce
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timeoutId);
+    };
+  }, [customerPhone, customerName, autoFilledPhone]);
 
   // Tracking Ticket State
   const [searchCodeOrPhone, setSearchCodeOrPhone] = useState<string>('');
@@ -627,6 +682,18 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                                 Nomor ini sudah punya reservasi aktif ({duplicatePhoneBooking.bookingCode} •{' '}
                                 {formatDateIndonesian(duplicatePhoneBooking.date)}). Satu nomor hanya boleh satu
                                 reservasi aktif.
+                              </span>
+                            </span>
+                          ) : isLookingUp ? (
+                            <span className="text-[10px] text-sky-400 block flex items-center gap-1.5">
+                              <div className="w-3 h-3 border-2 border-sky-400 border-t-transparent rounded-full animate-spin" />
+                              <span>Mengecek data pelanggan...</span>
+                            </span>
+                          ) : customerFound === true ? (
+                            <span className="text-[10px] text-emerald-400 block flex items-center gap-1.5">
+                              <CheckCircle2 className="w-3 h-3" />
+                              <span>
+                                Pelanggan dikenali! Nama <strong>{customerFoundName}</strong> sudah tersimpan.
                               </span>
                             </span>
                           ) : (

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Barber, Service } from '../../../types';
-import { formatIDR, getLocalTodayStr } from '../../../utils/formatters';
+import { formatIDR, getLocalTodayStr, isValidWhatsAppNumber } from '../../../utils/formatters';
+import { lookupCustomerByPhone } from '../../../services/customersService';
 
 interface AdminBookingFormModalProps {
   isOpen: boolean;
@@ -35,6 +36,11 @@ export const AdminBookingFormModal: React.FC<AdminBookingFormModalProps> = ({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [customerFound, setCustomerFound] = useState<boolean | null>(null);
+  const [customerFoundName, setCustomerFoundName] = useState<string>('');
+  const [isLookingUp, setIsLookingUp] = useState<boolean>(false);
+  const [hasAutoFilled, setHasAutoFilled] = useState<boolean>(false);
+
   useEffect(() => {
     if (isOpen) {
       setServiceId(services[0]?.id || '');
@@ -45,8 +51,52 @@ export const AdminBookingFormModal: React.FC<AdminBookingFormModalProps> = ({
       setCustomerEmail('');
       setBarberId('any');
       setError(null);
+      setCustomerFound(null);
+      setCustomerFoundName('');
+      setIsLookingUp(false);
+      setHasAutoFilled(false);
     }
   }, [isOpen, services]);
+
+  // Debounced phone lookup
+  useEffect(() => {
+    if (!customerPhone || customerPhone.length < 10 || !isValidWhatsAppNumber(customerPhone)) {
+      setCustomerFound(null);
+      setCustomerFoundName('');
+      setHasAutoFilled(false);
+      return;
+    }
+    if (hasAutoFilled) return;
+
+    let cancelled = false;
+    const timeoutId = setTimeout(async () => {
+      setIsLookingUp(true);
+      try {
+        const result = await lookupCustomerByPhone(customerPhone);
+        if (cancelled) return;
+        if (result && result.name) {
+          setCustomerFound(true);
+          setCustomerFoundName(result.name);
+          if (!customerName.trim()) {
+            setCustomerName(result.name);
+            setHasAutoFilled(true);
+          }
+        } else {
+          setCustomerFound(false);
+          setCustomerFoundName('');
+          setHasAutoFilled(false);
+        }
+      } catch {
+        if (!cancelled) {
+          setCustomerFound(false);
+          setCustomerFoundName('');
+        }
+      } finally {
+        if (!cancelled) setIsLookingUp(false);
+      }
+    }, 600);
+    return () => { cancelled = true; clearTimeout(timeoutId); };
+  }, [customerPhone, customerName, hasAutoFilled]);
 
   if (!isOpen) return null;
 
@@ -94,6 +144,14 @@ export const AdminBookingFormModal: React.FC<AdminBookingFormModalProps> = ({
             </label>
             <label className="text-stone-400">Nomor WhatsApp
               <input required type="tel" value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} className="mt-1 w-full px-3 py-2.5 rounded-xl bg-[#1B1B26] border border-stone-700 text-white focus:outline-none focus:border-[#D4AF37]" />
+              {isLookingUp && (
+                <span className="text-[10px] text-sky-400 block mt-1">Mengecek data pelanggan...</span>
+              )}
+              {customerFound === true && !isLookingUp && (
+                <span className="text-[10px] text-emerald-400 block mt-1">
+                  ✓ Pelanggan dikenali: {customerFoundName}
+                </span>
+              )}
             </label>
           </div>
 

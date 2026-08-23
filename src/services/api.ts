@@ -5,6 +5,7 @@ import { bookingsService } from './bookingsService';
 import { transactionsService } from './transactionsService';
 import { aiService } from './aiService';
 import { blueprintService } from './blueprintService';
+import { lookupCustomerByPhone, upsertCustomer, fetchCustomers } from './customersService';
 import { STORAGE_KEYS } from './storage';
 
 export {
@@ -16,6 +17,9 @@ export {
   transactionsService,
   aiService,
   blueprintService,
+  lookupCustomerByPhone,
+  upsertCustomer,
+  fetchCustomers,
 };
 
 /**
@@ -58,4 +62,9 @@ export const api = {
   getDatabaseStatus: blueprintService.getDatabaseStatus,
   getDatabaseSchema: blueprintService.getDatabaseSchema,
   getSitemap: blueprintService.getSitemap,
+
+  // Customers
+  lookupCustomerByPhone,
+  upsertCustomer,
+  fetchCustomers,
 };

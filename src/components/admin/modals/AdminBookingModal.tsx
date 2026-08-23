@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { CalendarPlus, User, Phone, Calendar, Clock, Scissors } from 'lucide-react';
+import { CalendarPlus, User, Phone, Calendar, Clock, Scissors, CheckCircle2 } from 'lucide-react';
 import { Service, Barber, Booking, SystemSettings } from '../../../types';
 import { formatIDR, getLocalTodayStr, sanitizePhoneInput, isValidWhatsAppNumber } from '../../../utils/formatters';
+import { lookupCustomerByPhone } from '../../../services/customersService';
 
 interface AdminBookingModalProps {
   isOpen: boolean;
@@ -90,6 +91,12 @@ export const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate, timeSlots.join(','), selectedTimeSlot]);
 
+  // Customer lookup state
+  const [customerFound, setCustomerFound] = useState<boolean | null>(null);
+  const [customerFoundName, setCustomerFoundName] = useState<string>('');
+  const [isLookingUp, setIsLookingUp] = useState<boolean>(false);
+  const [autoFilledPhone, setAutoFilledPhone] = useState<string>('');
+
   // Reset form when modal opens
   useEffect(() => {
     if (isOpen) {
@@ -99,9 +106,59 @@ export const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
       setBarberId('any');
       setSelectedDate(todayStr);
       setSelectedTimeSlot('');
+      setCustomerFound(null);
+      setCustomerFoundName('');
+      setIsLookingUp(false);
+      setAutoFilledPhone('');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
+
+  // Debounced phone lookup
+  useEffect(() => {
+    if (!customerPhone || customerPhone.length < 10 || !isValidWhatsAppNumber(customerPhone)) {
+      setCustomerFound(null);
+      setCustomerFoundName('');
+      setAutoFilledPhone('');
+      return;
+    }
+
+    if (autoFilledPhone === customerPhone) return;
+
+    let cancelled = false;
+    const timeoutId = setTimeout(async () => {
+      setIsLookingUp(true);
+      try {
+        const result = await lookupCustomerByPhone(customerPhone);
+        if (cancelled) return;
+
+        if (result && result.name) {
+          setCustomerFound(true);
+          setCustomerFoundName(result.name);
+          if (!customerName.trim()) {
+            setCustomerName(result.name);
+            setAutoFilledPhone(customerPhone);
+          }
+        } else {
+          setCustomerFound(false);
+          setCustomerFoundName('');
+          setAutoFilledPhone('');
+        }
+      } catch {
+        if (!cancelled) {
+          setCustomerFound(false);
+          setCustomerFoundName('');
+        }
+      } finally {
+        if (!cancelled) setIsLookingUp(false);
+      }
+    }, 600);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timeoutId);
+    };
+  }, [customerPhone, customerName, autoFilledPhone]);
 
   if (!isOpen) return null;
 
@@ -178,11 +235,23 @@ export const AdminBookingModal: React.FC<AdminBookingModalProps> = ({
                     : 'border-stone-800 focus:border-[#D4AF37]'
                 }`}
               />
-              {customerPhone && !phoneValid && (
+              {customerPhone && !phoneValid ? (
                 <span className="text-[10px] text-rose-400 block">
                   Format: 08xx / 628xx (10-13 digit).
                 </span>
-              )}
+              ) : isLookingUp ? (
+                <span className="text-[10px] text-sky-400 block flex items-center gap-1.5">
+                  <div className="w-3 h-3 border-2 border-sky-400 border-t-transparent rounded-full animate-spin" />
+                  <span>Mengecek data pelanggan...</span>
+                </span>
+              ) : customerFound === true ? (
+                <span className="text-[10px] text-emerald-400 block flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3 h-3" />
+                  <span>
+                    Pelanggan dikenali! Nama <strong>{customerFoundName}</strong> sudah tersimpan.
+                  </span>
+                </span>
+              ) : null}
             </div>
           </div>
 
