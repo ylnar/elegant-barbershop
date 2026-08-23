@@ -41,7 +41,7 @@ export async function lookupCustomerByPhone(phone: string): Promise<Customer | n
       return await lookupByDirectQuery(normalized);
     }
 
-    if (data && typeof data === 'object' && data.found) {
+    if (data && typeof data === 'object' && data.found === true && data.customer) {
       return mapCustomer(data.customer);
     }
     return null;
@@ -58,17 +58,28 @@ async function lookupByDirectQuery(normalizedPhone: string): Promise<Customer | 
   if (!client) return null;
 
   try {
-    const { data, error } = await client
-      .from('customers')
-      .select('*')
-      .eq('is_active', true)
-      .limit(50);
+    // Paginated approach: fetch in batches until found or exhausted
+    let page = 0;
+    const pageSize = 100;
+    let hasMore = true;
 
-    if (error || !data) return null;
+    while (hasMore) {
+      const { data, error } = await client
+        .from('customers')
+        .select('*')
+        .eq('is_active', true)
+        .range(page * pageSize, (page + 1) * pageSize - 1);
 
-    // Filter by normalized phone in JS since Supabase doesn't have regex replace
-    const match = data.find((c: any) => normalizePhone(c.phone) === normalizedPhone);
-    return match ? mapCustomer(match) : null;
+      if (error || !data || data.length === 0) break;
+
+      const match = data.find((c: any) => normalizePhone(c.phone) === normalizedPhone);
+      if (match) return mapCustomer(match);
+
+      hasMore = data.length === pageSize;
+      page++;
+    }
+
+    return null;
   } catch {
     return null;
   }
@@ -102,10 +113,10 @@ export async function upsertCustomer(
       return await upsertDirect(name, phone, email);
     }
 
-    if (data && typeof data === 'object' && data.customer) {
+    if (data && typeof data === 'object' && data.customer && typeof data.is_new === 'boolean') {
       return {
         customer: mapCustomer(data.customer),
-        isNew: Boolean(data.is_new),
+        isNew: data.is_new,
       };
     }
     return null;
@@ -127,23 +138,34 @@ async function upsertDirect(
 
   try {
     const normalized = normalizePhone(phone);
-
-    // Check if exists
-    const { data: existing } = await client
-      .from('customers')
-      .select('*')
-      .limit(50);
-
-    const match = existing?.find((c: any) => normalizePhone(c.phone) === normalized);
     const today = new Date().toISOString().split('T')[0];
+
+    // Paginated search for existing customer
+    let page = 0;
+    const pageSize = 100;
+    let hasMore = true;
+    let match: any = null;
+
+    while (hasMore && !match) {
+      const { data, error } = await client
+        .from('customers')
+        .select('*')
+        .range(page * pageSize, (page + 1) * pageSize - 1);
+
+      if (error || !data || data.length === 0) break;
+
+      match = data.find((c: any) => normalizePhone(c.phone) === normalized);
+      hasMore = data.length === pageSize;
+      page++;
+    }
 
     if (match) {
       // Update existing
       const { data, error } = await client
         .from('customers')
         .update({
-          name: name || match.name,
-          email: email || match.email,
+          name: (name && name.trim()) || match.name,
+          email: (email && email.trim()) || match.email,
           total_bookings: (match.total_bookings || 0) + 1,
           last_booking_date: today,
         })

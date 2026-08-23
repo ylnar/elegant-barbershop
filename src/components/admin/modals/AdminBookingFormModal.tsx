@@ -39,7 +39,7 @@ export const AdminBookingFormModal: React.FC<AdminBookingFormModalProps> = ({
   const [customerFound, setCustomerFound] = useState<boolean | null>(null);
   const [customerFoundName, setCustomerFoundName] = useState<string>('');
   const [isLookingUp, setIsLookingUp] = useState<boolean>(false);
-  const [hasAutoFilled, setHasAutoFilled] = useState<boolean>(false);
+  const [autoFilledPhone, setAutoFilledPhone] = useState<string>('');
 
   useEffect(() => {
     if (isOpen) {
@@ -54,7 +54,7 @@ export const AdminBookingFormModal: React.FC<AdminBookingFormModalProps> = ({
       setCustomerFound(null);
       setCustomerFoundName('');
       setIsLookingUp(false);
-      setHasAutoFilled(false);
+      setAutoFilledPhone('');
     }
   }, [isOpen, services]);
 
@@ -63,10 +63,10 @@ export const AdminBookingFormModal: React.FC<AdminBookingFormModalProps> = ({
     if (!customerPhone || customerPhone.length < 10 || !isValidWhatsAppNumber(customerPhone)) {
       setCustomerFound(null);
       setCustomerFoundName('');
-      setHasAutoFilled(false);
+      setAutoFilledPhone('');
       return;
     }
-    if (hasAutoFilled) return;
+    if (autoFilledPhone === customerPhone) return;
 
     let cancelled = false;
     const timeoutId = setTimeout(async () => {
@@ -79,12 +79,12 @@ export const AdminBookingFormModal: React.FC<AdminBookingFormModalProps> = ({
           setCustomerFoundName(result.name);
           if (!customerName.trim()) {
             setCustomerName(result.name);
-            setHasAutoFilled(true);
+            setAutoFilledPhone(customerPhone);
           }
         } else {
           setCustomerFound(false);
           setCustomerFoundName('');
-          setHasAutoFilled(false);
+          setAutoFilledPhone('');
         }
       } catch {
         if (!cancelled) {
@@ -96,7 +96,7 @@ export const AdminBookingFormModal: React.FC<AdminBookingFormModalProps> = ({
       }
     }, 600);
     return () => { cancelled = true; clearTimeout(timeoutId); };
-  }, [customerPhone, customerName, hasAutoFilled]);
+  }, [customerPhone, customerName, autoFilledPhone]);
 
   if (!isOpen) return null;
 

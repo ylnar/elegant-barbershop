@@ -139,8 +139,8 @@ BEGIN
     GROUP BY customer_name, customer_phone
     ON CONFLICT (phone) DO UPDATE SET
         name = EXCLUDED.name,
-        total_bookings = EXCLUDED.total_bookings,
-        last_booking_date = EXCLUDED.last_booking_date,
+        total_bookings = GREATEST(public.customers.total_bookings, EXCLUDED.total_bookings),
+        last_booking_date = GREATEST(public.customers.last_booking_date, EXCLUDED.last_booking_date),
         updated_at = NOW();
 
     RAISE NOTICE 'Customers table bootstrapped from existing bookings.';
