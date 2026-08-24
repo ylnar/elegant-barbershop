@@ -459,17 +459,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </button>
           </div>
 
-          {/* Mini Live Status Indicator */}
-          <div className="mt-4 p-2.5 rounded-xl bg-[#141420] border border-stone-800/80 flex items-center justify-between">
+          {/* Live Status Indicator */}
+          <div className="mt-4 p-2.5 rounded-xl bg-[#141420] border border-stone-800/80">
             <div className="flex items-center gap-2">
               <span className={`w-2 h-2 rounded-full ${settings.isBookingOpen ? 'bg-emerald-400 animate-pulse' : 'bg-rose-400'}`} />
               <span className="text-xs text-stone-300 font-medium">
-                {settings.isBookingOpen ? 'Reservasi Buka' : 'Mode Walk-in Only'}
+                {settings.isBookingOpen ? 'Reservasi Online Aktif' : 'Reservasi Ditutup'}
               </span>
             </div>
-            <span className="text-[10px] text-stone-400 font-mono">
-              Antrean: {settings.currentWalkInQueue}
-            </span>
           </div>
         </div>
 

@@ -125,7 +125,7 @@ export const INITIAL_LOOKBOOK: LookbookItem[] = [
     faceShape: ['Oval', 'Square', 'Heart'],
     hairType: 'Lurus / Bergelombang',
     description: 'Potongan fade bersih dengan tekstur atas bervolume, tampilan rapi dan segar sepanjang hari.',
-    imageUrl: 'https://images.unsplash.com/photo-1599351431202-1e0f0137899a?q=80&w=800&auto=format&fit=crop',
+    imageUrl: '/images/lookbook/textured-fade.webp',
     recommendedServiceId: 'srv-1',
   },
   {
@@ -135,7 +135,7 @@ export const INITIAL_LOOKBOOK: LookbookItem[] = [
     faceShape: ['Oval', 'Oblong', 'Diamond'],
     hairType: 'Lurus / Lembut',
     description: 'Gelombang rambut berdimensi ala tren Korea, mudah ditata dan bervolume natural.',
-    imageUrl: 'https://images.unsplash.com/photo-1503951914875-452162b0f3f1?q=80&w=800&auto=format&fit=crop',
+    imageUrl: '/images/lookbook/korean-wave.webp',
     recommendedServiceId: 'srv-5',
   },
   {
@@ -145,7 +145,7 @@ export const INITIAL_LOOKBOOK: LookbookItem[] = [
     faceShape: ['Square', 'Oval', 'Round'],
     hairType: 'Semua Jenis Rambut',
     description: 'Crop kontemporer dengan perpaduan warna kontras modern yang membuat penampilan lebih percaya diri.',
-    imageUrl: 'https://images.unsplash.com/photo-1621605815971-fbc98d665033?q=80&w=800&auto=format&fit=crop',
+    imageUrl: '/images/lookbook/modern-crop.webp',
     recommendedServiceId: 'srv-7',
   },
   {
@@ -155,7 +155,7 @@ export const INITIAL_LOOKBOOK: LookbookItem[] = [
     faceShape: ['Oval', 'Square'],
     hairType: 'Lurus / Tebal',
     description: 'Gaya klasik pria elegan dengan sisiran rapi ke belakang dan kilau pomade natural.',
-    imageUrl: 'https://images.unsplash.com/photo-1517832606299-7ae9b720a186?q=80&w=800&auto=format&fit=crop',
+    imageUrl: '/images/lookbook/classic-pompadour.webp',
     recommendedServiceId: 'srv-1',
   },
   {
@@ -165,7 +165,7 @@ export const INITIAL_LOOKBOOK: LookbookItem[] = [
     faceShape: ['Oval', 'Diamond', 'Heart'],
     hairType: 'Lurus / Bergelombang',
     description: 'Potongan mullet modern dengan gradasi taper lembut di samping, trendi dan khas anak muda.',
-    imageUrl: 'https://images.unsplash.com/photo-1521449256184-170b4a4c4362?q=80&w=800&auto=format&fit=crop',
+    imageUrl: '/images/lookbook/mullet-modern.webp',
     recommendedServiceId: 'srv-1',
   },
   {
@@ -175,7 +175,7 @@ export const INITIAL_LOOKBOOK: LookbookItem[] = [
     faceShape: ['Semua Bentuk Wajah'],
     hairType: 'Semua Jenis Rambut',
     description: 'Pewarnaan full bleaching dengan tone abu-abu perak dingin yang halus dan tidak merusak kulit kepala.',
-    imageUrl: 'https://images.unsplash.com/photo-1585747860715-2ba37e788b70?q=80&w=800&auto=format&fit=crop',
+    imageUrl: '/images/lookbook/full-bleach-ash.webp',
     recommendedServiceId: 'srv-8',
   },
 ];

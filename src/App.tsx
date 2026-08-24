@@ -40,14 +40,19 @@ export default function App({ dashboardOnly = false }: AppProps) {
   const [schemaModalOpen, setSchemaModalOpen] = useState<boolean>(false);
   const [sessionChecked, setSessionChecked] = useState<boolean>(false);
 
-  // Auto-verify stored session on mount
+  // Auto-verify stored session on mount — only auto-open admin on /dashboard page.
+  // On the main page (dashboardOnly=false), just verify silently so session stays valid
+  // without hijacking the public browsing experience.
   useEffect(() => {
     const stored = getStoredSession();
-    if (stored && !adminDashboardOpen) {
+    if (stored) {
       verifySession(stored.id).then((validUser) => {
         if (validUser) {
           setCurrentUser(validUser);
-          setAdminDashboardOpen(true);
+          // Only auto-open dashboard on the /dashboard route, not on the public homepage
+          if (dashboardOnly) {
+            setAdminDashboardOpen(true);
+          }
         } else {
           clearStoredSession();
           setCurrentUser(null);
@@ -59,7 +64,7 @@ export default function App({ dashboardOnly = false }: AppProps) {
     } else {
       setSessionChecked(true);
     }
-  }, []);
+  }, [dashboardOnly]);
 
   // Smooth scroll to booking section
   const handleScrollToBooking = () => {
@@ -110,7 +115,6 @@ export default function App({ dashboardOnly = false }: AppProps) {
               currentUser={currentUser}
               onRefreshData={refreshData}
               onClose={() => {
-                clearStoredSession();
                 window.location.assign('/');
               }}
             />
@@ -218,7 +222,6 @@ export default function App({ dashboardOnly = false }: AppProps) {
             onClose={() => {
               setAdminDashboardOpen(false);
               setCurrentUser(null);
-              clearStoredSession();
             }}
           />
         </Suspense>
