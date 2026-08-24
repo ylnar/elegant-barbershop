@@ -6,6 +6,7 @@ import { HeroSection } from './components/HeroSection';
 import { ServicesSection } from './components/ServicesSection';
 import { BookingSection } from './components/BookingSection';
 import { LocationSection } from './components/LocationSection';
+import { ReviewsSection } from './components/ReviewsSection';
 import { Footer } from './components/Footer';
 
 import { BookingTicketModal } from './components/BookingTicketModal';
@@ -157,6 +158,8 @@ export default function App({ dashboardOnly = false }: AppProps) {
           onSelectServiceAndBook={handleSelectServiceAndBook}
         />
 
+        {/* 4. Customer Reviews / Testimonials */}
+        <ReviewsSection />
 
         {/* 5. Dynamic Booking Engine (Reactive to Master Switch) */}
         <BookingSection
