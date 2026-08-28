@@ -1,22 +1,19 @@
 import { SystemSettings } from '../types';
 import { INITIAL_SETTINGS } from '../data/initialData';
 import { STORAGE_KEYS, getLocal, setLocal } from './storage';
-import { dbGetSettings, dbUpdateSettings, isSupabaseConfigured } from './supabaseClient';
+import { dbGetSettings, dbUpdateSettings } from './dbClient';
 
 export const settingsService = {
   async getSettings(): Promise<SystemSettings> {
-    // 1. Direct Supabase client
+    // 1. Ambil dari server (MongoDB via API routes)
     try {
       const liveSettings = await dbGetSettings();
       if (liveSettings) {
         setLocal(STORAGE_KEYS.SETTINGS, liveSettings);
         return liveSettings;
       }
-      if (isSupabaseConfigured()) {
-        throw new Error('Pengaturan tidak dapat dibaca dari Supabase.');
-      }
     } catch {
-      if (isSupabaseConfigured()) throw new Error('Gagal membaca pengaturan dari Supabase.');
+      // Aksi lanjut ke cache lokal
     }
 
     return getLocal<SystemSettings>(STORAGE_KEYS.SETTINGS, INITIAL_SETTINGS);
@@ -30,8 +27,8 @@ export const settingsService = {
         return updated;
       }
     } catch (e) {
-      console.error('[Supabase Update Settings]:', e);
-      if (isSupabaseConfigured()) throw e;
+      console.error('[DB Update Settings]:', e);
+      throw e;
     }
 
     // Local fallback
@@ -61,8 +58,7 @@ export const settingsService = {
 
       return { isBookingOpen: isOpenFinal, message };
     } catch (e) {
-      console.error('[Supabase Toggle Booking]:', e);
-      if (isSupabaseConfigured()) throw e;
+      console.error('[DB Toggle Booking]:', e);
 
       const cur = getLocal<SystemSettings>(STORAGE_KEYS.SETTINGS, INITIAL_SETTINGS);
       cur.isBookingOpen = typeof isOpen === 'boolean' ? isOpen : !cur.isBookingOpen;

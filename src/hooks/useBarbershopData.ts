@@ -1,7 +1,6 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { SystemSettings, Service, Barber, Booking, Transaction } from '../types';
 import { api } from '../services/api';
-import { subscribeToTable, isSupabaseConfigured } from '../services/supabaseClient';
 import { clearStaleCacheIfNeeded } from '../services/storage';
 
 // Clear stale localStorage cache on first load
@@ -15,9 +14,6 @@ export function useBarbershopData() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  
-  // Track realtime subscription status
-  const subscriptionsRef = useRef<Array<{ unsubscribe: () => void }>>([]);
 
   const loadData = useCallback(async () => {
     try {
@@ -55,7 +51,7 @@ export function useBarbershopData() {
     loadData();
   }, [loadData]);
 
-  // Realtime Supabase PostgreSQL listeners & auto-refocus refresh
+  // Polling (MongoDB tidak punya realtime client-side) + auto-refresh saat tab fokus
   useEffect(() => {
     // Re-fetch when user switches back to this browser tab
     const handleFocus = () => {
@@ -70,68 +66,17 @@ export function useBarbershopData() {
     window.addEventListener('focus', handleFocus);
     document.addEventListener('visibilitychange', handleVisibility);
 
-    if (!isSupabaseConfigured()) {
-      return () => {
-        window.removeEventListener('focus', handleFocus);
-      };
-    }
-
-    // Cleanup previous subscriptions
-    subscriptionsRef.current.forEach((sub) => {
-      try {
-        sub.unsubscribe();
-      } catch {
-        // ignore
+    // Lightweight polling sebagai pengganti realtime subscription
+    const pollingInterval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        loadData();
       }
-    });
-    subscriptionsRef.current = [];
-
-    // Listen to live booking additions or status changes
-    const bookingsSub = subscribeToTable('bookings', (payload) => {
-      console.log('[Realtime] Bookings event:', payload.eventType);
-      api.getBookings().then((data) => setBookings(data)).catch(() => {});
-    });
-
-    // Listen to live transactions / POS checkout
-    const transactionsSub = subscribeToTable('transactions', (payload) => {
-      console.log('[Realtime] Transactions event:', payload.eventType);
-      api.getTransactions().then((data) => setTransactions(data)).catch(() => {});
-    });
-
-    // Listen to live service/barber updates
-    const servicesSub = subscribeToTable('services', (payload) => {
-      console.log('[Realtime] Services event:', payload.eventType);
-      api.getServices().then((data) => setServices(data)).catch(() => {});
-    });
-
-    const barbersSub = subscribeToTable('barbers', (payload) => {
-      console.log('[Realtime] Barbers event:', payload.eventType);
-      api.getBarbers().then((data) => setBarbers(data)).catch(() => {});
-    });
-
-    const settingsSub = subscribeToTable('system_settings', (payload) => {
-      console.log('[Realtime] Settings event:', payload.eventType);
-      api.getSettings().then((data) => setSettings(data)).catch(() => {});
-    });
-
-    // Store subscriptions for cleanup
-    if (bookingsSub) subscriptionsRef.current.push(bookingsSub);
-    if (transactionsSub) subscriptionsRef.current.push(transactionsSub);
-    if (servicesSub) subscriptionsRef.current.push(servicesSub);
-    if (barbersSub) subscriptionsRef.current.push(barbersSub);
-    if (settingsSub) subscriptionsRef.current.push(settingsSub);
+    }, 10000);
 
     return () => {
       window.removeEventListener('focus', handleFocus);
       document.removeEventListener('visibilitychange', handleVisibility);
-      subscriptionsRef.current.forEach((sub) => {
-        try {
-          sub.unsubscribe();
-        } catch {
-          // ignore
-        }
-      });
-      subscriptionsRef.current = [];
+      clearInterval(pollingInterval);
     };
   }, [loadData]);
 

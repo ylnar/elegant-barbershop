@@ -288,12 +288,12 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
   return (
     <section
       id="booking"
-      className="py-16 sm:py-24 bg-[#0A0A0F] border-t border-[#1C1C26] relative overflow-hidden"
+      className="py-12 sm:py-20 bg-[#0A0A0F] border-t border-[#1C1C26] relative overflow-hidden"
     >
       {/* Decorative ambient lighting */}
       <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-[#D4AF37]/5 rounded-full blur-[140px] pointer-events-none" />
 
-      <div className="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10">
+      <div className="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
         
         {/* Section Header */}
         <div className="text-center space-y-3 max-w-3xl mx-auto">
@@ -302,11 +302,11 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
             <span>SISTEM RESERVASI DIGITAL</span>
           </div>
 
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-white font-serif tracking-tight">
+          <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-white font-serif tracking-tight">
             Booking Jadwal <span className="text-[#D4AF37]">Pangkas Rambut</span>
           </h2>
 
-          <p className="text-xs sm:text-sm text-stone-400 leading-relaxed max-w-2xl mx-auto">
+          <p className="text-[11px] sm:text-sm text-stone-400 leading-relaxed max-w-2xl mx-auto">
             Pilih layanan, tentukan master barber favorit, dan amankan slot waktu Anda tanpa perlu menunggu lama di outlet.
           </p>
         </div>
@@ -362,7 +362,7 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
           /* ========================================================================= */
           /* CASE B: SISTEM BOOKING AKTIF (FULL INTERACTIVE BOOKING ENGINE) */
           /* ========================================================================= */
-          <div className="space-y-8">
+          <div className="space-y-6">
             
             {/* Top Switcher: Form Reservasi Baru vs Lacak Tiket */}
             <div className="flex items-center justify-center">
@@ -397,106 +397,91 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
 
             {/* TAB 1: FORMULIR RESERVASI INTERAKTIF */}
             {activeTab === 'new_booking' && (
-              <form onSubmit={handleSubmitBooking} className="space-y-8">
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              <form onSubmit={handleSubmitBooking} className="space-y-6">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                   
                   {/* Left & Center: Multi-Step Interactive Form (2 Cols) */}
-                  <div className="lg:col-span-2 space-y-8">
+                  <div className="lg:col-span-2 space-y-6">
                     
-                    {/* STEP 1: PILIH LAYANAN */}
-                    <div className="p-6 sm:p-8 rounded-3xl bg-[#12121A] border border-stone-800 shadow-xl space-y-4">
-                      <div className="flex items-center justify-between pb-3 border-b border-stone-800">
+                    {/* LANGKAH 1: PILIH LAYANAN & MASTER BARBER */}
+                    <div className="p-5 sm:p-6 rounded-3xl bg-[#12121A] border border-stone-800 shadow-xl space-y-4">
+                      <div className="flex items-center justify-between gap-2 pb-3 border-b border-stone-800">
                         <div className="flex items-center gap-2.5">
                           <span className="w-7 h-7 rounded-lg bg-[#D4AF37]/20 text-[#D4AF37] flex items-center justify-center text-xs font-bold font-mono">
                             1
                           </span>
                           <h3 className="text-base sm:text-lg font-bold text-white font-serif">
-                            Pilih Layanan / Paket Pangkas
+                            Pilih Layanan &amp; Master Barber
                           </h3>
                         </div>
-                        <span className="text-[11px] text-stone-400">
-                          {activeServices.length} Pilihan Tersedia
+                        <span className="text-[11px] text-stone-400 whitespace-nowrap">
+                          {activeServices.length} Layanan • {activeBarbers.length} Barber
                         </span>
                       </div>
 
-                      <div className="pt-1">
-                        <label htmlFor="booking-service" className="sr-only">
-                          Pilih layanan
-                        </label>
-                        <select
-                          id="booking-service"
-                          value={selectedServiceId}
-                          onChange={(event) => {
-                            setSelectedServiceId(event.target.value);
-                            if (onSelectServiceId) onSelectServiceId(event.target.value);
-                          }}
-                          disabled={activeServices.length === 0}
-                          className="w-full rounded-2xl border border-stone-700 bg-[#0E0E14] px-4 py-3.5 text-sm font-semibold text-white outline-none transition-colors focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/20 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          {activeServices.length === 0 ? (
-                            <option value="">Belum ada layanan tersedia</option>
-                          ) : (
-                            activeServices.map((service) => (
-                              <option key={service.id} value={service.id}>
-                                {service.name} - {formatIDR(service.price)}
-                              </option>
-                            ))
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                        <div className="space-y-1.5">
+                          <label htmlFor="booking-service" className="text-xs font-bold text-stone-300">
+                            Layanan / Paket Pangkas
+                          </label>
+                          <select
+                            id="booking-service"
+                            value={selectedServiceId}
+                            onChange={(event) => {
+                              setSelectedServiceId(event.target.value);
+                              if (onSelectServiceId) onSelectServiceId(event.target.value);
+                            }}
+                            disabled={activeServices.length === 0}
+                            className="w-full rounded-2xl border border-stone-700 bg-[#0E0E14] px-4 py-3 text-sm font-semibold text-white outline-none transition-colors focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/20 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {activeServices.length === 0 ? (
+                              <option value="">Belum ada layanan tersedia</option>
+                            ) : (
+                              activeServices.map((service) => (
+                                <option key={service.id} value={service.id}>
+                                  {service.name} - {formatIDR(service.price)}
+                                </option>
+                              ))
+                            )}
+                          </select>
+                          {currentService && (
+                            <span className="text-[11px] text-stone-400 flex items-center justify-between px-0.5">
+                              <span>Layanan dipilih</span>
+                              <span className="font-bold text-[#D4AF37]">{formatIDR(currentService.price)}</span>
+                            </span>
                           )}
-                        </select>
-                        {currentService && (
-                          <div className="mt-2 flex items-center justify-between px-1 text-xs text-stone-400">
-                            <span>Layanan dipilih</span>
-                            <span className="font-bold text-[#D4AF37]">{formatIDR(currentService.price)}</span>
-                          </div>
-                        )}
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <label htmlFor="booking-barber" className="text-xs font-bold text-stone-300">
+                            Master Barber Favorit
+                          </label>
+                          <select
+                            id="booking-barber"
+                            value={selectedBarberId}
+                            onChange={(event) => setSelectedBarberId(event.target.value)}
+                            className="w-full rounded-2xl border border-stone-700 bg-[#0E0E14] px-4 py-3 text-sm font-semibold text-white outline-none transition-colors focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/20"
+                          >
+                            <option value="any">Barber Siap Pertama - Paling Cepat Dilayani</option>
+                            {activeBarbers.map((barber) => (
+                              <option key={barber.id} value={barber.id}>
+                                {barber.name}
+                              </option>
+                            ))}
+                          </select>
+                          <span className="text-[11px] text-stone-400 px-0.5 block">
+                            Pilih barber favorit atau serahkan ke barber yang siap lebih dulu.
+                          </span>
+                        </div>
                       </div>
                     </div>
 
-                    {/* STEP 2: PILIH MASTER BARBER */}
-                    <div className="p-6 sm:p-8 rounded-3xl bg-[#12121A] border border-stone-800 shadow-xl space-y-4">
-                      <div className="flex items-center justify-between pb-3 border-b border-stone-800">
+                    {/* LANGKAH 2: PILIH TANGGAL & SLOT JAM */}
+                    <div className="p-5 sm:p-6 rounded-3xl bg-[#12121A] border border-stone-800 shadow-xl space-y-5">
+                      <div className="flex items-center justify-between gap-2 pb-3 border-b border-stone-800">
                         <div className="flex items-center gap-2.5">
                           <span className="w-7 h-7 rounded-lg bg-[#D4AF37]/20 text-[#D4AF37] flex items-center justify-center text-xs font-bold font-mono">
                             2
-                          </span>
-                          <h3 className="text-base sm:text-lg font-bold text-white font-serif">
-                            Pilih Master Barber
-                          </h3>
-                        </div>
-                        <span className="text-[11px] text-stone-400">
-                          Bebas pilih barber favorit
-                        </span>
-                      </div>
-
-                      <div className="pt-1">
-                        <label htmlFor="booking-barber" className="sr-only">
-                          Pilih master barber
-                        </label>
-                        <select
-                          id="booking-barber"
-                          value={selectedBarberId}
-                          onChange={(event) => setSelectedBarberId(event.target.value)}
-                          className="w-full rounded-2xl border border-stone-700 bg-[#0E0E14] px-4 py-3.5 text-sm font-semibold text-white outline-none transition-colors focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/20"
-                        >
-                          <option value="any">Barber Siap Pertama - Paling Cepat Dilayani</option>
-                          {activeBarbers.map((barber) => (
-                            <option key={barber.id} value={barber.id}>
-                              {barber.name}
-                            </option>
-                          ))}
-                        </select>
-                        <p className="mt-2 px-1 text-xs text-stone-400">
-                          Pilih barber favorit atau serahkan ke barber yang siap lebih dulu.
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* STEP 3: PILIH TANGGAL & SLOT JAM */}
-                    <div className="p-6 sm:p-8 rounded-3xl bg-[#12121A] border border-stone-800 shadow-xl space-y-5">
-                      <div className="flex items-center justify-between pb-3 border-b border-stone-800">
-                        <div className="flex items-center gap-2.5">
-                          <span className="w-7 h-7 rounded-lg bg-[#D4AF37]/20 text-[#D4AF37] flex items-center justify-center text-xs font-bold font-mono">
-                            3
                           </span>
                           <h3 className="text-base sm:text-lg font-bold text-white font-serif">
                             Pilih Hari &amp; Jam Kedatangan
@@ -570,7 +555,7 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                         <span className="text-xs font-bold text-stone-300 uppercase tracking-wider block">
                           Slot Jam Kedatangan:
                         </span>
-                        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                        <div className="grid grid-cols-3 sm:grid-cols-8 gap-1.5">
                           {timeSlots.length === 0 ? (
                             <div className="col-span-full text-center py-4">
                               <span className="text-sm text-stone-400 italic">
@@ -590,7 +575,7 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                                   type="button"
                                   disabled={isFullyBooked || past}
                                   onClick={() => !past && setSelectedTimeSlot(slot)}
-                                  className={`py-2.5 px-2 rounded-xl text-center border text-xs font-bold transition-all cursor-pointer ${
+                                  className={`py-2 px-1 rounded-lg text-center border text-[11px] font-bold transition-all cursor-pointer ${
                                     past
                                       ? 'bg-stone-900/20 border-stone-900/50 text-stone-700 line-through cursor-not-allowed'
                                       : isFullyBooked
@@ -618,11 +603,11 @@ export const BookingSection: React.FC<BookingSectionProps> = ({
                       </div>
                     </div>
 
-                    {/* STEP 4: DATA IDENTITAS PEMESAN */}
-                    <div className="p-6 sm:p-8 rounded-3xl bg-[#12121A] border border-stone-800 shadow-xl space-y-4">
+                    {/* LANGKAH 3: DATA IDENTITAS PEMESAN */}
+                    <div className="p-5 sm:p-6 rounded-3xl bg-[#12121A] border border-stone-800 shadow-xl space-y-4">
                       <div className="flex items-center gap-2.5 pb-3 border-b border-stone-800">
                         <span className="w-7 h-7 rounded-lg bg-[#D4AF37]/20 text-[#D4AF37] flex items-center justify-center text-xs font-bold font-mono">
-                          4
+                          3
                         </span>
                         <h3 className="text-base sm:text-lg font-bold text-white font-serif">
                           Data Pelanggan

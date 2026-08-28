@@ -2,19 +2,23 @@ import {
   DATABASE_SCHEMA_BLUEPRINT,
   SITEMAP_WORKFLOW_BLUEPRINT,
 } from '../data/initialData';
-import { checkSupabaseConnection, isSupabaseConfigured } from './supabaseClient';
+import { checkDbConnection } from './dbClient';
 
 export interface DatabaseStatusInfo {
   isConfigured: boolean;
   isConnected: boolean;
-  supabaseUrlMasked: string | null;
-  mode: 'supabase_live' | 'in_memory_fallback';
+  dbName: string | null;
+  uriMasked: string | null;
+  mode: 'mongodb_live' | 'in_memory_fallback';
   tables: {
     categories: boolean;
     services: boolean;
     barbers: boolean;
     bookings: boolean;
     transactions: boolean;
+    customers: boolean;
+    admins: boolean;
+    sessions: boolean;
   };
   message: string;
 }
@@ -24,27 +28,48 @@ export const blueprintService = {
     try {
       const res = await fetch('/api/database/status');
       if (res.ok) {
-        return await res.json();
+        const report = await res.json();
+        return {
+          isConfigured: Boolean(report?.isConfigured),
+          isConnected: Boolean(report?.isConnected),
+          dbName: report?.dbName || null,
+          uriMasked: report?.uriMasked || null,
+          mode: report?.mode === 'mongodb_live' ? 'mongodb_live' : 'in_memory_fallback',
+          tables: {
+            categories: !!(report?.collections?.services),
+            services: !!(report?.collections?.services),
+            barbers: !!(report?.collections?.barbers),
+            bookings: !!(report?.collections?.bookings),
+            transactions: !!(report?.collections?.transactions),
+            customers: !!(report?.collections?.customers),
+            admins: !!(report?.collections?.admins),
+            sessions: !!(report?.collections?.sessions),
+          },
+          message: report?.message || '',
+        };
       }
     } catch (e) {
       console.warn('Failed to fetch server database status, testing client-side:', e);
     }
 
     // Client-side fallback check
-    const isConfig = isSupabaseConfigured();
-    const connCheck = await checkSupabaseConnection();
+    const connCheck = await checkDbConnection();
 
     return {
-      isConfigured: isConfig,
+      isConfigured: true,
       isConnected: connCheck.connected,
-      supabaseUrlMasked: isConfig ? 'https://****.supabase.co' : null,
-      mode: connCheck.connected ? 'supabase_live' : 'in_memory_fallback',
+      dbName: null,
+      uriMasked: null,
+      mode: connCheck.connected ? 'mongodb_live' : 'in_memory_fallback',
       tables: {
         categories: connCheck.connected,
         services: connCheck.connected,
         barbers: connCheck.connected,
         bookings: connCheck.connected,
         transactions: connCheck.connected,
+        customers: connCheck.connected,
+        admins: connCheck.connected,
+        sessions: connCheck.connected,
       },
       message: connCheck.message,
     };
@@ -70,4 +95,3 @@ export const blueprintService = {
     return SITEMAP_WORKFLOW_BLUEPRINT;
   },
 };
-

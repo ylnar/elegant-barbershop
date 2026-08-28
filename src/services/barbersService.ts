@@ -1,22 +1,21 @@
 import { Barber } from '../types';
 import { INITIAL_BARBERS } from '../data/initialData';
 import { STORAGE_KEYS, getLocal, setLocal } from './storage';
-import { fetchBarbersLive, dbCreateBarber, dbUpdateBarber, dbDeleteBarber, getSupabaseClient } from './supabaseClient';
+import { fetchBarbersLive, dbCreateBarber, dbUpdateBarber, dbDeleteBarber } from './dbClient';
 
 export const barbersService = {
   async getBarbers(): Promise<Barber[]> {
-    // 1. Direct Supabase client
+    // 1. Ambil dari server (MongoDB via API routes)
     try {
       const liveBarbers = await fetchBarbersLive();
-      if (liveBarbers !== null) {
+      if (liveBarbers !== null && liveBarbers.length > 0) {
         setLocal(STORAGE_KEYS.BARBERS, liveBarbers);
         return liveBarbers;
       }
     } catch {
-      // Fall through to local cache
+      // Aksi lanjut ke cache lokal
     }
 
-    if (getSupabaseClient()) throw new Error('Gagal membaca barber dari Supabase.');
     return getLocal<Barber[]>(STORAGE_KEYS.BARBERS, INITIAL_BARBERS);
   },
 

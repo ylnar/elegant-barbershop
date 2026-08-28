@@ -47,6 +47,8 @@ interface AdminDashboardProps {
   currentUser?: AdminUser | null;
   onRefreshData: () => Promise<void>;
   onClose: () => void;
+  /** Bila ada, tombol "Keluar" benar-benar menghapus sesi (logout). */
+  onLogout?: () => void;
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
@@ -58,6 +60,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   currentUser,
   onRefreshData,
   onClose,
+  onLogout,
 }) => {
   const [activeTab, setActiveTab] = useState<
     'transactions' | 'bookings' | 'switch' | 'services' | 'barbers' | 'reports' | 'guide'
@@ -755,7 +758,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         icon="logout"
         onConfirm={() => {
           setLogoutModalOpen(false);
-          onClose();
+          onLogout ? onLogout() : onClose();
         }}
         onClose={() => setLogoutModalOpen(false)}
       />

@@ -1,50 +1,30 @@
 #!/usr/bin/env node
 /**
  * ============================================================
- * ELEGANT BARBERSHOP SOLOK — Database CLI
+ * ELEGANT BARBERSHOP SOLOK — MongoDB CLI
  * ============================================================
- * Kelola database Supabase langsung dari terminal.
- * Tidak perlu buka Supabase Dashboard / SQL Editor lagi.
- *
- * Setup sekali saja (pilih salah satu):
- *   1. Isi SUPABASE_DB_PASSWORD="..." di file .env, selesai.
- *   2. npm run db:setup -- PASSWORD_DATABASE_ANDA
+ * Kelola database MongoDB langsung dari terminal.
+ * Tidak perlu buka MongoDB Compass / mongo shell lagi.
  *
  * Perintah:
- *   npm run db:migrate   Terapkan migrasi pending (+ seed data awal)
- *   npm run db:status    Lihat status migrasi (applied/pending)
+ *   npm run db:setup -- "mongodb://localhost:27017/elegant_barbershop"
+ *                      -- "mongodb+srv://user:pass@cluster.mongodb.net/elegant_barbershop"
+ *   npm run db:status    Lihat koneksi, koleksi & jumlah dokumen
  *   npm run db:doctor    Diagnosa lengkap koneksi & database
- *   npm run db:seed      Isi ulang data awal (idempotent)
- *   npm run db:reset     HAPUS semua tabel & migrasi ulang (--force)
- *   npm run db:sql       Jalankan SQL bebas
- *   npm run db:new       Buat file migrasi baru bertimestamp
- *
- * Catatan: `npm run dev` juga otomatis menjalankan migrasi pending
- * (matikan dengan DB_AUTO_MIGRATE="false" di .env).
+ *   npm run db:seed      Isi data awal (idempotent) — alternatif auto-seed boot
+ *   npm run db:reset -- --force   HAPUS semua koleksi & data (HATI-HATI!)
  * ============================================================
  */
 import 'dotenv/config';
 import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline/promises';
-import { fileURLToPath } from 'node:url';
-import {
-  MIGRATIONS_DIR,
-  maskUrl,
-  getProjectRef,
-  getDbPassword,
-  updateEnvFile,
-  resolveConnection,
-  listMigrationFiles,
-  createClientFromUrl,
-  ensureMigrationsTable,
-  getApplied,
-  applyOne,
-} from './db-lib.mjs';
+import dns from 'node:dns';
+import { MongoClient } from 'mongodb';
+import { INITIAL_SERVICES, INITIAL_BARBERS, INITIAL_SETTINGS, DEFAULT_ADMIN, hashPassword } from './seed-data.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const ENV_FILE = path.join(ROOT, '.env');
-const SEED_FILE = '0002_seed_data.sql';
 
 const C = {
   reset: '\x1b[0m',
@@ -62,227 +42,316 @@ const warn = (msg) => log(`${C.yellow}!${C.reset} ${msg}`);
 const fail = (msg) => log(`${C.red}✖ ${msg}${C.reset}`);
 const info = (msg) => log(`${C.dim}${msg}${C.reset}`);
 
-function usage() {
-  log(`
-${C.bold}Elegant Barbershop — Database CLI${C.reset}
+const DEFAULT_URI = 'mongodb://localhost:27017/elegant_barbershop';
 
-${C.cyan}Setup (sekali saja):${C.reset}
-  Isi ${C.bold}SUPABASE_DB_PASSWORD${C.reset} di .env, atau:
-  npm run db:setup -- PASSWORD_DATABASE_ANDA
-
-${C.cyan}Perintah:${C.reset}
-  npm run db:migrate          Buat tabel/fungsi/RLS + data awal otomatis
-  npm run db:status           Lihat migrasi yang sudah/pending
-  npm run db:doctor           Diagnosa koneksi & database
-  npm run db:seed             Isi ulang data awal (idempotent)
-  npm run db:sql -- "SELECT count(*) FROM bookings"
-  npm run db:new -- nama_perubahan
-  npm run db:reset -- --force   ${C.red}(HATI-HATI: hapus semua data!)${C.reset}
-`);
+// Beberapa ISP/router menolak query DNS dari Node (padahal Windows DNS Client
+// normal). Bila `mongodb+srv://` gagal resolusi, pakai public DNS.
+const FALLBACK_DNS = ['8.8.8.8', '1.1.1.1'];
+let dnsChecked = false;
+async function ensureUsableDns() {
+  if (dnsChecked) return;
+  dnsChecked = true;
+  const override = (process.env.MONGODB_DNS_SERVERS || '').trim();
+  if (override) {
+    dns.setServers(override.split(',').map((s) => s.trim()).filter(Boolean));
+    return;
+  }
+  const uri = getUri();
+  const m = uri.match(/^mongodb\+srv:\/\/([^/]+)/);
+  if (!m) return;
+  const host = m[1];
+  const probe = () =>
+    new Promise((resolve) => {
+      const t = setTimeout(() => resolve(true), 2500);
+      dns.resolveSrv(host, (err) => {
+        clearTimeout(t);
+        resolve(!!err);
+      });
+    });
+  if (await probe()) {
+    dns.setServers(FALLBACK_DNS);
+    warn(`Resolver DNS default menolak query, memakai public DNS (${FALLBACK_DNS.join(', ')}).`);
+  }
 }
 
-/* --------------------------- withClient ---------------------------- */
+const COLLECTIONS = {
+  settings: 'settings',
+  services: 'services',
+  barbers: 'barbers',
+  bookings: 'bookings',
+  transactions: 'transactions',
+  customers: 'customers',
+  admins: 'admins',
+  sessions: 'sessions',
+};
+
+/** Mask URI: sembunyikan kredensial user/password */
+function maskUri(uri) {
+  try {
+    const u = new URL(String(uri).replace('mongodb+srv://', 'mongodb://'));
+    if (u.username) u.username = '****';
+    if (u.password) u.password = '****';
+    return String(u).replace(/^mongodb:\/\//, 'mongodb+srv://');
+  } catch {
+    return String(uri).slice(0, 14) + '****';
+  }
+}
+
+function getUri() {
+  const explicit = (process.env.MONGODB_URI || '').trim();
+  return explicit || DEFAULT_URI;
+}
+
+function getDbName(uri) {
+  const explicit = (process.env.MONGODB_DB_NAME || '').trim();
+  if (explicit) return explicit;
+  try {
+    const u = new URL(uri.replace('mongodb+srv://', 'mongodb://'));
+    return (u.pathname.split('/')[1] || 'elegant_barbershop').split('?')[0];
+  } catch {
+    return 'elegant_barbershop';
+  }
+}
+
+function updateEnvFile(key, value) {
+  let content = fs.existsSync(ENV_FILE) ? fs.readFileSync(ENV_FILE, 'utf8') : '';
+  const line = `${key}="${value}"`;
+  const re = new RegExp(`^(\\s*${key}\\s*=).*$`, 'm');
+  if (re.test(content)) {
+    content = content.replace(re, `$1"${value}"`);
+  } else {
+    if (content && !content.endsWith('\n')) content += '\n';
+    content += `${line}\n`;
+  }
+  fs.writeFileSync(ENV_FILE, content);
+}
 
 async function withClient(fn) {
-  let resolved;
+  await ensureUsableDns();
+  const uri = getUri();
+  const dbName = getDbName(uri);
+  const client = new MongoClient(uri, {
+    serverSelectionTimeoutMS: parseInt(process.env.MONGODB_CONNECT_TIMEOUT_MS || '8000', 10),
+  });
   try {
-    resolved = await resolveConnection({ logger: info });
-  } catch (err) {
-    fail(err.message);
-    process.exitCode = 1;
-    return;
-  }
-  if (!resolved) {
-    fail('Koneksi database belum dikonfigurasi.');
-    log('');
-    warn(`Isi ${C.bold}SUPABASE_DB_PASSWORD${C.reset} di .env (password ada di Supabase Dashboard > Project Settings > Database),`);
-    log(`   atau jalankan: ${C.bold}npm run db:setup -- PASSWORD_ANDA${C.reset}`);
-    process.exitCode = 1;
-    return;
-  }
-  info(`Koneksi: ${maskUrl(resolved.url)} [${resolved.source}]`);
-  const client = createClientFromUrl(resolved.url);
-  await client.connect();
-  try {
-    await fn(client);
+    await client.connect();
+    const db = client.db(dbName);
+    info(`Koneksi : ${maskUri(uri)}`);
+    info(`Database: ${dbName}`);
+    return await fn({ client, db });
   } finally {
-    await client.end().catch(() => {});
+    await client.close().catch(() => {});
   }
+}
+
+/** Buat index yang dipakai aplikasi (paralel dengan server/mongodb.ts) */
+async function ensureIndexes(db) {
+  await db.collection(COLLECTIONS.services).createIndex({ id: 1 }, { unique: true });
+  await db.collection(COLLECTIONS.services).createIndex({ category: 1 });
+  await db.collection(COLLECTIONS.services).createIndex({ isDeleted: 1 });
+  await db.collection(COLLECTIONS.barbers).createIndex({ id: 1 }, { unique: true });
+  await db.collection(COLLECTIONS.barbers).createIndex({ isDeleted: 1 });
+  await db.collection(COLLECTIONS.bookings).createIndex({ id: 1 }, { unique: true });
+  await db.collection(COLLECTIONS.bookings).createIndex({ bookingCode: 1 }, { unique: true });
+  await db.collection(COLLECTIONS.bookings).createIndex({ customerPhone: 1 });
+  await db.collection(COLLECTIONS.bookings).createIndex({ date: 1, timeSlot: 1 });
+  await db.collection(COLLECTIONS.bookings).createIndex({ status: 1 });
+  await db.collection(COLLECTIONS.bookings).createIndex({ isDeleted: 1 });
+  await db.collection(COLLECTIONS.transactions).createIndex({ id: 1 }, { unique: true });
+  await db.collection(COLLECTIONS.transactions).createIndex({ invoiceNumber: 1 }, { unique: true });
+  await db.collection(COLLECTIONS.transactions).createIndex({ createdAt: -1 });
+  await db.collection(COLLECTIONS.transactions).createIndex({ paymentMethod: 1 });
+  await db.collection(COLLECTIONS.transactions).createIndex({ isDeleted: 1 });
+  await db.collection(COLLECTIONS.customers).createIndex({ id: 1 }, { unique: true });
+  await db.collection(COLLECTIONS.customers).createIndex({ phone: 1 }, { unique: true });
+  await db.collection(COLLECTIONS.customers).createIndex({ isDeleted: 1 });
+  await db.collection(COLLECTIONS.admins).createIndex({ id: 1 }, { unique: true });
+  await db.collection(COLLECTIONS.admins).createIndex({ username: 1 }, { unique: true });
+  await db.collection(COLLECTIONS.admins).createIndex({ isActive: 1 });
+  await db.collection(COLLECTIONS.sessions).createIndex({ token: 1 }, { unique: true });
+  await db.collection(COLLECTIONS.sessions).createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 }
 
 /* ----------------------------- perintah ---------------------------- */
 
+function usage() {
+  log(`
+${C.bold}Elegant Barbershop — MongoDB CLI${C.reset}
+
+${C.cyan}Setup (sekali saja):${C.reset}
+  Isi ${C.bold}MONGODB_URI${C.reset} di .env, atau:
+  npm run db:setup -- "mongodb://localhost:27017/elegant_barbershop"
+  npm run db:setup -- "mongodb+srv://user:pass@cluster0.xxxx.mongodb.net/elegant_barbershop"
+
+${C.cyan}Perintah:${C.reset}
+  npm run db:status           Lihat koneksi, koleksi & jumlah dokumen
+  npm run db:doctor           Diagnosa lengkap koneksi & database
+  npm run db:seed             Isi data awal (idempotent)
+  npm run db:reset -- --force   ${C.red}(HATI-HATI: hapus semua data!)${C.reset}
+`);
+}
+
 async function cmdSetup(args) {
   const input = args.filter((a) => !a.startsWith('--')).join(' ').trim();
   if (!input) {
-    fail('Cara pakai: npm run db:setup -- PASSWORD_ANDA');
-    log('  atau:       npm run db:setup -- "postgresql://postgres.xxx:PASSWORD@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres"');
+    fail('Cara pakai: npm run db:setup -- "mongodb://...atau mongodb+srv://..."');
+    process.exitCode = 1;
+    return;
+  }
+  if (!/^mongodb(\+srv)?:\/\//i.test(input)) {
+    fail('Connection string harus diawali mongodb:// atau mongodb+srv://');
     process.exitCode = 1;
     return;
   }
 
-  if (/^postgres(ql)?:\/\//i.test(input)) {
-    // URI utuh: simpan sebagai DATABASE_URL dan bersihkan password terpisah.
-    updateEnvFile('DATABASE_URL', input);
-    ok('DATABASE_URL tersimpan ke .env');
-  } else {
-    updateEnvFile('SUPABASE_DB_PASSWORD', input);
-    ok('SUPABASE_DB_PASSWORD tersimpan ke .env');
-    const ref = getProjectRef();
-    if (!ref) {
-      warn('SUPABASE_URL tidak dikenali di .env — tidak bisa deteksi host otomatis.');
-      process.exitCode = 1;
-      return;
-    }
-  }
+  updateEnvFile('MONGODB_URI', input);
+  ok('MONGODB_URI tersimpan ke .env');
 
-  // Deteksi + verifikasi koneksi sekarang juga.
-  delete process.env.DATABASE_URL;
-  delete process.env.SUPABASE_DB_URL;
-  process.env.SUPABASE_DB_PASSWORD = /^postgres(ql)?:\/\//i.test(input) ? '' : input;
-
-  try {
-    const resolved = await resolveConnection({ logger: info });
-    if (resolved) {
-      await verifyOrExit(resolved.url);
-    }
-  } catch (err) {
-    fail(err.message);
-    warn('Perbaiki lalu jalankan ulang: npm run db:setup -- PASSWORD_ANDA');
-    process.exitCode = 1;
-  }
-}
-
-async function verifyOrExit(url) {
-  const client = createClientFromUrl(url);
+  // Verifikasi koneksi sekarang juga.
+  delete process.env.MONGODB_URI;
+  process.env.MONGODB_URI = input;
+  const uri = input;
+  const dbName = getDbName(uri);
+  const client = new MongoClient(uri, { serverSelectionTimeoutMS: 8000 });
   process.stdout.write(`${C.cyan}→${C.reset} Menguji koneksi ... `);
   try {
     await client.connect();
-    const { rows } = await client.query('SELECT version() AS v;');
+    await client.db(dbName).command({ ping: 1 });
     log(`${C.green}berhasil${C.reset}`);
-    ok(rows[0].v.split(',')[0]);
+    ok(`Terhubung ke database "${dbName}".`);
     log('');
-    log(`${C.bold}Siap!${C.reset} Sekarang jalankan:  ${C.cyan}npm run db:migrate${C.reset}`);
+    log(`${C.bold}Siap!${C.reset} Jalankan:  ${C.cyan}npm run dev${C.reset}  (auto-seed otomatis bila database kosong)`);
   } catch (err) {
     log(`${C.red}gagal${C.reset}`);
     fail(err.message);
     process.exitCode = 1;
   } finally {
-    await client.end().catch(() => {});
-  }
-}
-
-async function cmdMigrate() {
-  try {
-    const { applied, skipped } = await import('./db-lib.mjs').then((m) =>
-      m.migratePending({ logger: (m) => log(m) })
-    );
-    if (applied.length === 0) {
-      ok(`Database sudah mutakhir (${skipped} migrasi diterapkan). Tidak ada yang perlu dilakukan.`);
-    } else {
-      log('');
-      ok(`Semua migrasi berhasil diterapkan (${applied.length} baru, total ${applied.length + skipped}). Database siap dipakai!`);
-    }
-  } catch (err) {
-    fail(err.message);
-    process.exitCode = 1;
+    await client.close().catch(() => {});
   }
 }
 
 async function cmdStatus() {
-  await withClient(async (client) => {
-    await ensureMigrationsTable(client);
-    const applied = await getApplied(client);
-    const files = listMigrationFiles();
+  await withClient(async ({ db }) => {
+    await ensureIndexes(db);
+    log(`\n${C.bold}Status Database MongoDB${C.reset}\n`);
 
-    log(`\n${C.bold}Status Migrasi${C.reset}\n`);
-    for (const f of files) {
-      const isApplied = applied.includes(f);
-      const mark = isApplied ? `${C.green}✔ applied${C.reset}` : `${C.yellow}○ pending${C.reset}`;
-      log(`  ${mark}  ${f}`);
+    const names = (await db.listCollections({}, { nameOnly: true }).toArray()).map((n) => n.name);
+    for (const key of Object.keys(COLLECTIONS)) {
+      const name = COLLECTIONS[key];
+      if (names.includes(name)) {
+        const count = await db.collection(name).countDocuments();
+        log(`  ${C.green}✔${C.reset} ${name.padEnd(14)} ${count} dokumen`);
+      } else {
+        log(`  ${C.yellow}○${C.reset} ${name.padEnd(14)} belum dibuat (dibuat otomatis saat dipakai)`);
+      }
     }
-    for (const m of applied.filter((a) => !files.includes(a))) {
-      log(`  ${C.dim}? tercatat tapi filenya hilang: ${m}${C.reset}`);
-    }
-    const pendingCount = files.filter((f) => !applied.includes(f)).length;
     log('');
-    if (pendingCount > 0) {
-      warn(`${pendingCount} migrasi pending. Jalankan: npm run db:migrate`);
-    } else {
-      ok('Semua migrasi sudah diterapkan.');
-    }
+    ok('Koneksi MongoDB sehat.');
   });
 }
 
 async function cmdDoctor() {
   log(`\n${C.bold}🩺 Diagnosa Database Elegant Barbershop${C.reset}\n`);
 
-  // 1. Environment
-  const ref = getProjectRef();
-  const hasPassword = Boolean(getDbPassword());
-  const hasDirectUrl = Boolean(process.env.DATABASE_URL || process.env.SUPABASE_DB_URL);
-  const autoMigrate = (process.env.DB_AUTO_MIGRATE ?? 'true').toLowerCase();
-  log(`  Project ref        : ${ref ? C.green + ref + C.reset : C.red + 'tidak ditemukan (cek SUPABASE_URL)' + C.reset}`);
-  log(`  DATABASE_URL       : ${hasDirectUrl ? C.green + 'terisi' + C.reset : C.yellow + 'kosong (akan disusun otomatis)' + C.reset}`);
-  log(`  SUPABASE_DB_PASSWORD: ${hasPassword ? C.green + 'terisi' + C.reset : C.red + 'kosong' + C.reset}`);
-  log(`  Auto-migrate (dev) : ${autoMigrate === 'false' ? C.yellow + 'nonaktif' + C.reset : C.green + 'aktif' + C.reset}`);
+  const uri = (process.env.MONGODB_URI || '').trim();
+  const dbName = (process.env.MONGODB_DB_NAME || '').trim();
+  const autoSeed = (process.env.MONGODB_AUTO_SEED ?? 'true').toLowerCase();
+  log(`  MONGODB_URI          : ${uri ? C.green + maskUri(uri) + C.reset : C.yellow + 'kosong (memakai default localhost)' + C.reset}`);
+  log(`  MONGODB_DB_NAME      : ${dbName ? C.green + dbName + C.reset : C.yellow + 'default (diambil dari URI)' + C.reset}`);
+  log(`  MONGODB_AUTO_SEED    : ${autoSeed === 'false' ? C.yellow + 'nonaktif' + C.reset : C.green + 'aktif' + C.reset}`);
 
-  // 2. File migrasi
-  const files = listMigrationFiles();
-  log(`\n  File migrasi (${files.length}):`);
-  for (const f of files) log(`    - ${f}`);
-
-  // 3. Koneksi end-to-end
   log('');
+  process.stdout.write('  Menguji koneksi end-to-end ... ');
   try {
-    const resolved = await resolveConnection({ logger: info });
-    if (!resolved) {
-      fail('Koneksi belum bisa dibentuk: isi SUPABASE_DB_PASSWORD di .env.');
-      process.exitCode = 1;
-      return;
-    }
-    process.stdout.write('  Menguji koneksi end-to-end ... ');
-    const client = createClientFromUrl(resolved.url);
-    await client.connect();
-    log(`${C.green}OK${C.reset}`);
-
-    // 4. Isi database
-    await ensureMigrationsTable(client);
-    const applied = await getApplied(client);
-    const pending = files.filter((f) => !applied.includes(f));
-    const { rows: tbl } = await client.query(`
-      SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename;
-    `);
-    log(`\n  Tabel public       : ${tbl.map((r) => r.tablename).join(', ') || C.red + '(belum ada)' + C.reset}`);
-    log(`  Migrasi diterapkan : ${applied.length}, pending: ${pending.length}`);
-    if (pending.length > 0) warn(`Jalankan npm run db:migrate untuk menerapkan ${pending.length} migrasi pending.`);
-    else ok('Database siap digunakan.');
-    await client.end();
+    await withClient(async ({ db }) => {
+      log(`${C.green}OK${C.reset}`);
+      await ensureIndexes(db);
+      const names = (await db.listCollections({}, { nameOnly: true }).toArray()).map((n) => n.name);
+      log(`\n  Koleksi (${names.length}):`);
+      for (const key of Object.keys(COLLECTIONS)) {
+        const name = COLLECTIONS[key];
+        log(`    - ${name}${names.includes(name) ? ` (${await db.collection(name).countDocuments()} dokumen)` : C.dim + ' (belum dibuat)' + C.reset}`);
+      }
+      log('');
+      ok('Database siap digunakan.');
+    });
   } catch (err) {
+    log(`${C.red}gagal${C.reset}`);
     fail(err.message);
+    warn('Pastikan MongoDB berjalan (local: mongod) atau periksa URI Atlas Anda.');
     process.exitCode = 1;
   }
 }
 
 async function cmdSeed() {
-  await withClient(async (client) => {
-    const seedPath = path.join(MIGRATIONS_DIR, SEED_FILE);
-    if (!fs.existsSync(seedPath)) {
-      fail(`File seed tidak ditemukan: supabase/migrations/${SEED_FILE}`);
-      process.exitCode = 1;
-      return;
+  await withClient(async ({ db }) => {
+    await ensureIndexes(db);
+    const now = new Date().toISOString();
+    let seeded = false;
+
+    const servicesCol = db.collection(COLLECTIONS.services);
+    if ((await servicesCol.countDocuments()) === 0) {
+      await servicesCol.insertMany(
+        INITIAL_SERVICES.map((s) => ({ ...s, isDeleted: false, createdAt: now, updatedAt: now })),
+        { ordered: false },
+      );
+      seeded = true;
+      ok(`Seed ${servicesCol.collectionName}: ${INITIAL_SERVICES.length} layanan`);
+    } else {
+      info(`${COLLECTIONS.services} sudah terisi, dilewati.`);
     }
-    const sql = fs.readFileSync(seedPath, 'utf8');
-    process.stdout.write(`${C.cyan}→${C.reset} Menjalankan ${C.bold}${SEED_FILE}${C.reset} ... `);
-    try {
-      await client.query(sql);
-      log(`${C.green}berhasil${C.reset}`);
-      ok('Data awal (kategori, pricelist, barber, sampel) sudah terisi.');
-    } catch (err) {
-      log(`${C.red}gagal${C.reset}`);
-      fail(err.message);
-      process.exitCode = 1;
+
+    const barbersCol = db.collection(COLLECTIONS.barbers);
+    if ((await barbersCol.countDocuments()) === 0) {
+      await barbersCol.insertMany(
+        INITIAL_BARBERS.map((b) => ({ ...b, isDeleted: false, createdAt: now, updatedAt: now })),
+        { ordered: false },
+      );
+      seeded = true;
+      ok(`Seed ${barbersCol.collectionName}: ${INITIAL_BARBERS.length} barber`);
+    } else {
+      info(`${COLLECTIONS.barbers} sudah terisi, dilewati.`);
     }
+
+    const settingsCol = db.collection(COLLECTIONS.settings);
+    if ((await settingsCol.countDocuments()) === 0) {
+      await settingsCol.insertOne({
+        key: 'default_settings',
+        ...INITIAL_SETTINGS,
+        createdAt: now,
+      });
+      seeded = true;
+      ok(`Seed ${settingsCol.collectionName}: pengaturan default`);
+    } else {
+      info(`${COLLECTIONS.settings} sudah terisi, dilewati.`);
+    }
+
+    const adminsCol = db.collection(COLLECTIONS.admins);
+    const existingAdmin = await adminsCol.findOne({
+      $or: [{ username: DEFAULT_ADMIN.username }, { id: DEFAULT_ADMIN.id }],
+    });
+    if (!existingAdmin) {
+      const { hash, salt } = hashPassword(DEFAULT_ADMIN.password);
+      await adminsCol.insertOne({
+        id: DEFAULT_ADMIN.id,
+        username: DEFAULT_ADMIN.username,
+        passwordHash: hash,
+        passwordSalt: salt,
+        displayName: DEFAULT_ADMIN.displayName,
+        role: DEFAULT_ADMIN.role,
+        isActive: true,
+        createdAt: now,
+        updatedAt: now,
+      });
+      seeded = true;
+      ok(`Seed ${adminsCol.collectionName}: akun admin "${DEFAULT_ADMIN.username}" (role ${DEFAULT_ADMIN.role})`);
+    } else {
+      info(`${COLLECTIONS.admins} sudah ada akun "${DEFAULT_ADMIN.username}", dilewati.`);
+    }
+
+    log('');
+    if (seeded) ok('Seed data awal berhasil. Jalankan npm run dev untuk memuat.');
+    else ok('Tidak ada yang perlu di-seed (semua koleksi sudah berisi).');
   });
 }
 
@@ -290,7 +359,7 @@ async function cmdReset(args) {
   if (!args.includes('--force')) {
     const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
     const answer = await rl.question(
-      `${C.red}PERINGATAN: Semua tabel & data akan DIHAPUS permanen. Lanjutkan? (ketik YA):${C.reset} `
+      `${C.red}PERINGATAN: Semua koleksi & data akan DIHAPUS permanen. Lanjutkan? (ketik YA):${C.reset} `,
     );
     rl.close();
     if (answer.trim().toUpperCase() !== 'YA') {
@@ -298,72 +367,32 @@ async function cmdReset(args) {
       return;
     }
   }
-  await withClient(async (client) => {
-    process.stdout.write(`${C.cyan}→${C.reset} Menghapus skema public ... `);
-    await client.query(`
-      DROP SCHEMA public CASCADE;
-      CREATE SCHEMA public;
-      GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
-      GRANT ALL ON SCHEMA public TO postgres, service_role;
-    `);
-    log(`${C.green}berhasil${C.reset}`);
-  });
-  if (process.exitCode) return;
-  log('');
-  await cmdMigrate();
-}
-
-async function cmdSql(args) {
-  const query = args.join(' ').trim();
-  if (!query) {
-    fail('Cara pakai: npm run db:sql -- "SELECT * FROM services LIMIT 5;"');
-    process.exitCode = 1;
-    return;
-  }
-  await withClient(async (client) => {
-    const result = await client.query(query);
-    if (result.rows && result.rows.length > 0) {
-      console.table(result.rows);
-    } else {
-      ok(`Query OK. Baris terpengaruh: ${result.rowCount ?? 0}`);
+  await withClient(async ({ db }) => {
+    for (const key of Object.keys(COLLECTIONS)) {
+      const name = COLLECTIONS[key];
+      try {
+        await db.collection(name).drop();
+        info(`${name} dihapus.`);
+      } catch {
+        // koleksi belum ada — skip
+      }
     }
   });
-}
-
-async function cmdNew(args) {
-  const raw = args.filter((a) => !a.startsWith('--')).join('_').trim();
-  const slug = (raw || 'perubahan_baru').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
-  const stamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14);
-  fs.mkdirSync(MIGRATIONS_DIR, { recursive: true });
-  const file = `${stamp}_${slug}.sql`;
-  const full = path.join(MIGRATIONS_DIR, file);
-  if (fs.existsSync(full)) {
-    fail(`File sudah ada: ${file}`);
-    process.exitCode = 1;
-    return;
-  }
-  fs.writeFileSync(
-    full,
-    `-- Migrasi: ${slug}\n-- Dibuat: ${new Date().toISOString()}\n-- Tulis SQL Anda di bawah ini.\n\n`
-  );
-  ok(`Migrasi baru dibuat: supabase/migrations/${file}`);
-  log(`  Edit file tersebut lalu jalankan ${C.cyan}npm run db:migrate${C.reset}`);
+  log('');
+  ok('Semua koleksi dihapus. Jalankan seed (npm run db:seed) atau boot server untuk mengisi ulang.');
 }
 
 /* ------------------------------- main ------------------------------ */
 
-const [cmd = 'migrate', ...rest] = process.argv.slice(2);
+const [cmd = 'status', ...rest] = process.argv.slice(2);
 
 try {
   switch (cmd) {
     case 'setup': await cmdSetup(rest); break;
-    case 'migrate': await cmdMigrate(); break;
     case 'status': await cmdStatus(); break;
     case 'doctor': await cmdDoctor(); break;
     case 'seed': await cmdSeed(); break;
     case 'reset': await cmdReset(rest); break;
-    case 'sql': await cmdSql(rest); break;
-    case 'new': await cmdNew(rest); break;
     case 'help':
     case '--help':
     case '-h': usage(); break;

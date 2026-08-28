@@ -3,16 +3,17 @@ import { NextRequest, NextResponse } from 'next/server';
 const ALLOWED_WIDTHS = new Set([16, 32, 48, 64, 96, 128, 256, 384, 640, 750, 828, 1080, 1200, 1600]);
 const ALLOWED_QUALITIES = new Set([75]);
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'https://tysuzmawovhavchwatjb.supabase.co';
-const SUPABASE_HOST = (() => {
-  try {
-    return new URL(SUPABASE_URL).hostname;
-  } catch {
-    return '';
-  }
-})();
-const SUPABASE_PUBLIC_PREFIX = `/storage/v1/object/public/`;
+const CORS_HEADERS: Record<string, string> = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'Access-Control-Max-Age': '86400',
+};
 
+/**
+ * Hanya izinkan sumber gambar lokal (path relatif). Remote origin (mis. CDN)
+ * perlu ditambahkan secara eksplisit lewat images.remotePatterns.
+ */
 function isAllowedSource(rawUrl: string): boolean {
   if (!rawUrl) return false;
   if (rawUrl.startsWith('/')) return true;
@@ -20,9 +21,7 @@ function isAllowedSource(rawUrl: string): boolean {
   try {
     const parsed = new URL(rawUrl);
     if (parsed.protocol !== 'https:') return false;
-    if (parsed.hostname === SUPABASE_HOST && parsed.pathname.startsWith(SUPABASE_PUBLIC_PREFIX)) {
-      return true;
-    }
+    // Tidak ada remote host yang diizinkan
     return false;
   } catch {
     return false;
@@ -30,6 +29,21 @@ function isAllowedSource(rawUrl: string): boolean {
 }
 
 export function middleware(req: NextRequest) {
+  // ── CORS for API routes (mobile app) ──
+  if (req.nextUrl.pathname.startsWith('/api/')) {
+    // Preflight OPTIONS
+    if (req.method === 'OPTIONS') {
+      return new NextResponse(null, { status: 204, headers: CORS_HEADERS });
+    }
+    // Add CORS headers to all API responses
+    const response = NextResponse.next();
+    for (const [key, value] of Object.entries(CORS_HEADERS)) {
+      response.headers.set(key, value);
+    }
+    return response;
+  }
+
+  // ── Image optimization guard ──
   if (req.method !== 'GET' && req.method !== 'HEAD') {
     return new NextResponse(null, { status: 405 });
   }
@@ -50,5 +64,5 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: '/_next/image',
+  matcher: ['/api/:path*', '/_next/image'],
 };

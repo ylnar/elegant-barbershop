@@ -1,5 +1,6 @@
 import { serverStore } from '@server/state';
-import { json, readBody, sanitizeString } from '@lib/api';
+import { json, apiError, readBody, sanitizeString } from '@lib/api';
+import { requireAdminSession } from '@server/adminAuth';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -11,6 +12,9 @@ export async function GET() {
 
 // PUT /api/settings
 export async function PUT(req: Request) {
+  if (!(await requireAdminSession(req))) {
+    return apiError('Anda tidak berwenang. Silakan login sebagai admin.', 401);
+  }
   const updates = await readBody(req);
   if (updates.shopName) updates.shopName = sanitizeString(updates.shopName);
   if (updates.tagline) updates.tagline = sanitizeString(updates.tagline);

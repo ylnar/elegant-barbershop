@@ -9,23 +9,20 @@
     "lint": "tsc --noEmit",
     "icons": "node scripts/generate-icons.mjs",
     "db:setup": "node scripts/db.mjs setup",
-    "db:migrate": "node scripts/db.mjs migrate",
     "db:status": "node scripts/db.mjs status",
     "db:doctor": "node scripts/db.mjs doctor",
     "db:seed": "node scripts/db.mjs seed",
-    "db:reset": "node scripts/db.mjs reset",
-    "db:sql": "node scripts/db.mjs sql",
-    "db:new": "node scripts/db.mjs new"
+    "db:reset": "node scripts/db.mjs reset"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
-    "@supabase/supabase-js": "^2.112.3",
     "canvas-confetti": "^1.9.4",
     "dotenv": "^17.2.3",
+    "jose": "^6.2.10",
     "lucide-react": "^0.546.0",
+    "mongodb": "^7.6.0",
     "motion": "^12.23.24",
     "next": "^15.5.6",
-    "pg": "^8.23.0",
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
     "xlsx": "^0.18.5"

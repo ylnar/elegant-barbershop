@@ -27,7 +27,7 @@ export function getLocalDateStr(offsetDays = 0): string {
 }
 
 /**
- * Convert any ISO timestamp (UTC from Supabase) to WIB date string (YYYY-MM-DD).
+ * Convert any ISO timestamp (UTC from server/MongoDB) to WIB date string (YYYY-MM-DD).
  */
 export function toLocalDateStr(isoString: string): string {
   if (!isoString) return '';
@@ -35,7 +35,7 @@ export function toLocalDateStr(isoString: string): string {
 }
 
 /**
- * Convert any ISO timestamp (UTC from Supabase) to WIB datetime string.
+ * Convert any ISO timestamp (UTC from server/MongoDB) to WIB datetime string.
  * Output format: "2026-08-23 17:30"
  */
 export function toWIBDateTimeStr(isoString: string): string {

@@ -132,7 +132,6 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         {/* Performance Hints */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link rel="dns-prefetch" href="https://tysuzmawovhavchwatjb.supabase.co" />
 
         {/* LCP: pre-load hero background before JS/CSS executes */}
         <link rel="preload" as="image" href="/images/hero-atmosphere.webp" fetchPriority="high" />

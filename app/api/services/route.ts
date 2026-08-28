@@ -1,39 +1,22 @@
 import { serverStore } from '@server/state';
 import { Service } from '@/types';
-import { json, readBody, sanitizeString } from '@lib/api';
-import { getServerSupabase } from '@server/supabase';
+import { json, apiError, readBody, sanitizeString } from '@lib/api';
+import { mongoRepo } from '@server/mongoRepo';
+import { requireAdminSession } from '@server/adminAuth';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-// GET /api/services - Always fetch fresh dynamic data from Supabase
+// GET /api/services - Always fetch fresh dynamic data from MongoDB
 export async function GET() {
   try {
-    const supabase = getServerSupabase();
-    if (supabase) {
-      const { data, error } = await supabase
-        .from('services')
-        .select('*')
-        .eq('is_deleted', false)
-        .order('created_at', { ascending: false });
-
-      if (!error && data && data.length > 0) {
-        const mapped: Service[] = data.map((s: any) => ({
-          id: String(s.id),
-          name: s.name || 'Layanan Pangkas',
-          category: s.category_slug || s.category || 'haircut',
-          price: Number(s.price ?? 0),
-          durationMinutes: Number(s.duration_minutes ?? s.durationMinutes ?? 35),
-          description: s.description || '',
-          badge: s.badge || undefined,
-          isActive: s.is_active !== undefined ? Boolean(s.is_active) : true,
-        }));
-        serverStore.setServices(mapped);
-        return json(mapped);
-      }
+    const remote = await mongoRepo.fetchServices();
+    if (remote) {
+      serverStore.setServices(remote);
+      return json(remote);
     }
   } catch (err) {
-    console.warn('[Services Route] Remote fetch error:', err);
+    console.warn('[Services Route] MongoDB fetch error:', err);
   }
 
   return json(serverStore.getServices());
@@ -41,6 +24,9 @@ export async function GET() {
 
 // POST /api/services
 export async function POST(req: Request) {
+  if (!(await requireAdminSession(req))) {
+    return apiError('Anda tidak berwenang. Silakan login sebagai admin.', 401);
+  }
   const body = await readBody(req);
   const name = sanitizeString(body.name);
   if (!name) {
@@ -63,38 +49,25 @@ export async function POST(req: Request) {
     isActive: body.isActive !== false,
   };
 
-  // Try Supabase first, fall back to in-memory
+  // Try MongoDB first, fall back to in-memory
   let persistedToDatabase = false;
-  const supabase = getServerSupabase();
-  if (supabase) {
-    try {
-      const { error } = await supabase.from('services').insert({
-        name: newService.name,
-        category_slug: newService.category,
-        price: newService.price,
-        duration_minutes: newService.durationMinutes,
-        description: newService.description,
-        badge: newService.badge || null,
-        is_active: newService.isActive,
-      });
-      if (!error) {
-        persistedToDatabase = true;
-      } else {
-        console.error('[Supabase Insert Service Error]:', error.message);
-      }
-    } catch (err) {
-      console.error('[Supabase Insert Service Error]:', err);
+  try {
+    persistedToDatabase = await mongoRepo.insertService(newService);
+    if (!persistedToDatabase) {
+      console.error('[MongoDB Insert Service Error]: simpan gagal');
     }
+  } catch (err) {
+    console.error('[MongoDB Insert Service Error]:', err);
   }
 
-  // Always store in-memory (persist=false since route already handled Supabase)
+  // Always store in-memory (persist=false since route already handled MongoDB)
   const created = serverStore.addService(newService, false);
   return json(
     {
       success: true,
       service: created,
       message: persistedToDatabase
-        ? 'Layanan berhasil disimpan ke database.'
+        ? 'Layanan berhasil disimpan ke MongoDB.'
         : 'Layanan berhasil disimpan (mode lokal).',
     },
     201,

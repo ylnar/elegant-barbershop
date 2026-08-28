@@ -1,4 +1,6 @@
-import React, { useState, useEffect, Suspense, lazy } from 'react';
+'use client';
+
+import React, { useState, Suspense, lazy } from 'react';
 import { Booking } from './types';
 import { useBarbershopData } from './hooks/useBarbershopData';
 import { Navbar } from './components/Navbar';
@@ -11,7 +13,6 @@ import { Footer } from './components/Footer';
 
 import { BookingTicketModal } from './components/BookingTicketModal';
 import { ToastContainer } from './components/ui/Toast';
-import { AdminLoginModal, getStoredSession, clearStoredSession, verifySession } from './components/admin/AdminLoginModal';
 
 // Lazy load heavy admin components for better initial load performance
 const AdminDashboard = lazy(() => import('./components/admin/AdminDashboard').then(m => ({ default: m.AdminDashboard })));
@@ -19,9 +20,11 @@ const DatabaseBlueprintModal = lazy(() => import('./components/admin/DatabaseBlu
 
 interface AppProps {
   dashboardOnly?: boolean;
+  /** User admin dari sesi (di-pass server component /dashboard). */
+  initialUser?: { id: string; username: string; displayName: string; role: string } | null;
 }
 
-export default function App({ dashboardOnly = false }: AppProps) {
+export default function App({ dashboardOnly = false, initialUser = null }: AppProps) {
   const {
     settings,
     services,
@@ -35,37 +38,16 @@ export default function App({ dashboardOnly = false }: AppProps) {
   // Modals & triggers
   const [selectedServiceForBooking, setSelectedServiceForBooking] = useState<string | null>(null);
   const [ticketModalBooking, setTicketModalBooking] = useState<Booking | null>(null);
-  const [adminLoginModalOpen, setAdminLoginModalOpen] = useState<boolean>(false);
-  const [adminDashboardOpen, setAdminDashboardOpen] = useState<boolean>(false);
-  const [currentUser, setCurrentUser] = useState<{ id: string; username: string; displayName: string; role: string } | null>(() => getStoredSession());
+  const [adminDashboardOpen, setAdminDashboardOpen] = useState<boolean>(dashboardOnly);
+  const [currentUser, setCurrentUser] = useState<{ id: string; username: string; displayName: string; role: string } | null>(initialUser);
   const [schemaModalOpen, setSchemaModalOpen] = useState<boolean>(false);
-  const [sessionChecked, setSessionChecked] = useState<boolean>(false);
 
-  // Auto-verify stored session on mount — only auto-open admin on /dashboard page.
-  // On the main page (dashboardOnly=false), just verify silently so session stays valid
-  // without hijacking the public browsing experience.
-  useEffect(() => {
-    const stored = getStoredSession();
-    if (stored) {
-      verifySession(stored.id).then((validUser) => {
-        if (validUser) {
-          setCurrentUser(validUser);
-          // Only auto-open dashboard on the /dashboard route, not on the public homepage
-          if (dashboardOnly) {
-            setAdminDashboardOpen(true);
-          }
-        } else {
-          clearStoredSession();
-          setCurrentUser(null);
-        }
-        setSessionChecked(true);
-      }).catch(() => {
-        setSessionChecked(true);
-      });
-    } else {
-      setSessionChecked(true);
-    }
-  }, [dashboardOnly]);
+  // Logout: hapus sesi di MongoDB + kembali ke halaman depan.
+  const handleLogout = () => {
+    setCurrentUser(null);
+    void fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+    window.location.assign('/');
+  };
 
   // Smooth scroll to booking section
   const handleScrollToBooking = () => {
@@ -101,35 +83,25 @@ export default function App({ dashboardOnly = false }: AppProps) {
     return (
       <div className="min-h-screen bg-[#0A0A0E] text-stone-100">
         <ToastContainer />
-        {adminDashboardOpen && currentUser ? (
-          <Suspense fallback={
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md">
-              <div className="w-8 h-8 border-2 border-[#D4AF37] border-t-transparent rounded-full animate-spin" />
-            </div>
-          }>
-            <AdminDashboard
-              settings={settings}
-              services={services}
-              barbers={barbers}
-              bookings={bookings}
-              transactions={transactions}
-              currentUser={currentUser}
-              onRefreshData={refreshData}
-              onClose={() => {
-                window.location.assign('/');
-              }}
-            />
-          </Suspense>
-        ) : (
-          <AdminLoginModal
-            onSuccess={(user) => {
-              setCurrentUser(user);
-              setAdminLoginModalOpen(false);
-              setAdminDashboardOpen(true);
+        <Suspense fallback={
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md">
+            <div className="w-8 h-8 border-2 border-[#D4AF37] border-t-transparent rounded-full animate-spin" />
+          </div>
+        }>
+          <AdminDashboard
+            settings={settings}
+            services={services}
+            barbers={barbers}
+            bookings={bookings}
+            transactions={transactions}
+            currentUser={currentUser}
+            onLogout={handleLogout}
+            onRefreshData={refreshData}
+            onClose={() => {
+              window.location.assign('/');
             }}
-            onClose={() => window.location.assign('/')}
           />
-        )}
+        </Suspense>
       </div>
     );
   }
@@ -195,18 +167,6 @@ export default function App({ dashboardOnly = false }: AppProps) {
         />
       )}
 
-      {/* Admin Login Modal */}
-      {adminLoginModalOpen && (
-        <AdminLoginModal
-          onSuccess={(user) => {
-            setCurrentUser(user);
-            setAdminLoginModalOpen(false);
-            setAdminDashboardOpen(true);
-          }}
-          onClose={() => setAdminLoginModalOpen(false)}
-        />
-      )}
-
       {/* Admin Operational Dashboard (Lazy Loaded) */}
       {adminDashboardOpen && (
         <Suspense fallback={
@@ -221,10 +181,10 @@ export default function App({ dashboardOnly = false }: AppProps) {
             bookings={bookings}
             transactions={transactions}
             currentUser={currentUser}
+            onLogout={handleLogout}
             onRefreshData={refreshData}
             onClose={() => {
               setAdminDashboardOpen(false);
-              setCurrentUser(null);
             }}
           />
         </Suspense>

@@ -2,15 +2,37 @@ import { NextResponse } from 'next/server';
 
 /**
  * Helper API Next.js — util bersama untuk semua route handler
- * (respons JSON, sanitasi input, rate limiting).
+ * (respons JSON, sanitasi input, rate limiting, CORS).
  */
 
+// ── CORS Headers ───────────────────────────────────────────────────────────
+
+const CORS_HEADERS: Record<string, string> = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'Access-Control-Max-Age': '86400',
+};
+
+/** Response JSON dengan CORS headers (untuk mobile app). */
 export function json(data: unknown, status = 200) {
-  return NextResponse.json(data as Record<string, unknown>, { status });
+  return NextResponse.json(data as Record<string, unknown>, {
+    status,
+    headers: CORS_HEADERS,
+  });
 }
 
+/** Error response dengan CORS headers. */
 export function apiError(message: string, status = 400, extra: Record<string, unknown> = {}) {
-  return NextResponse.json({ error: message, ...extra }, { status });
+  return NextResponse.json(
+    { error: message, ...extra },
+    { status, headers: CORS_HEADERS },
+  );
+}
+
+/** CORS preflight response (untuk OPTIONS request). */
+export function corsPreflightResponse() {
+  return new NextResponse(null, { status: 204, headers: CORS_HEADERS });
 }
 
 export async function readBody(req: Request): Promise<Record<string, any>> {

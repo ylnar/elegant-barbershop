@@ -53,15 +53,13 @@ elegant-barbershop/
 ├── server/                      # Modular Backend API Layer
 │   ├── middleware/
 │   │   └── security.ts          # Security headers, rate limiting, & input sanitization
-│   ├── routes/
-│   │   ├── ai.ts                # Gemini 3.7 Flash AI Consultant endpoint
-│   │   ├── barbers.ts           # Barbers management API
-│   │   ├── blueprints.ts        # Database schema & sitemap endpoints
-│   │   ├── bookings.ts          # Reservation & tracking API
-│   │   ├── services.ts          # Pricing & catalog management API
-│   │   ├── settings.ts          # Master switch & system configuration API
-│   │   └── transactions.ts      # POS checkout & revenue history API
-│   └── state.ts                 # Central in-memory state store with CRUD logic
+│   ├── mongoRepo.ts             # MongoDB repository (CRUD + seed + indexes)
+│   ├── mongodb.ts               # MongoDB client, connection & status check
+│   ├── state.ts                 # Central in-memory state store with CRUD logic (backed by mongoRepo)
+│   └── config.ts                # Environment configuration (MongoDB URI, dbName, dll.)
+├── scripts/                     # CLI Database MongoDB
+│   ├── db.mjs                   # CLI setup/status/doctor/seed/reset
+│   └── seed-data.mjs            # Seed data (sinkron dengan src/data/initialData.ts)
 ├── src/                         # Frontend React SPA
 │   ├── assets/                  # High-definition images & brand visual assets
 │   ├── components/              # Modular UI Components
@@ -103,7 +101,7 @@ elegant-barbershop/
 │   ├── page.tsx                 # Landing page entry (renders src/App.tsx)
 │   └── api/                     # REST API route handlers (auth, barbers, bookings,
 │                                #   services, transactions, settings, ai-consultant)
-├── server/                      # Shared domain logic (state store, Supabase client)
+├── server/                      # Shared domain logic (state store, mongoRepo, mongodb, config)
 ├── lib/api.ts                   # Helper route handler (sanitasi, rate limit, JSON)
 ├── .env.example                 # Environment variables blueprint
 ├── ARCHITECTURE.md              # System Architecture Document
@@ -121,14 +119,17 @@ elegant-barbershop/
 
 ### 3.1 Dual-Tier Resilience Pattern
 Aplikasi menggunakan pola ketahanan ganda (*dual-tier persistence resilience*):
-1. **Primary Layer (Supabase Direct Client)**: Klien menggunakan `@supabase/supabase-js` langsung dari browser dengan anon key. Semua operasi CRUD (SELECT, INSERT, UPDATE, DELETE) dilakukan langsung ke Supabase PostgreSQL via REST API. Data real-time via Supabase Realtime subscriptions.
-2. **Fallback Layer (Client Local Storage)**: Jika Supabase tidak terkonfigurasi atau koneksi gagal, `services/*` secara otomatis membaca dan menulis ke `localStorage` melalui `storage.ts`. Pengguna tidak akan pernah menemui layar blank atau error fatal.
+1. **Primary Layer (MongoDB Repository)**: Seluruh operasi CRUD di server melalui `server/mongoRepo.ts` yang terhubung ke MongoDB (bisa lokal maupun Atlas). Data dari API routes ditulis & dibaca langsung ke/dari koleksi MongoDB.
+2. **In-Memory-Server Layer (Fallback)**: Jika `MONGODB_URI` tidak dikonfigurasi atau koneksi gagal, `server/state.ts` (in-memory store) yang menjadi sumber data sehingga aplikasi tidak pernah blank — namun data hilang saat server restart.
+3. **LocalStorage Cache (Klien)**: `services/storage.ts` menyediakan cache baca-saja ringan di sisi browser sebagai lapisan offline tambahan.
 
-### 3.2 Realtime Data Flow
-- Semua tabel operasional (bookings, transactions, services, barbers, system_settings) terdaftar di `supabase_realtime` publication.
-- `useBarbershopData` hook berlangganan ke semua tabel via `subscribeToTable()`. Setiap perubahan data di Supabase langsung ter-refetch ke UI.
-- Tab refocus dan visibility change juga trigger re-fetch untuk memastikan data selalu fresh.
-- Soft delete (`is_deleted: true`) ditangkap sebagai DELETE event di realtime handler.
+> **Catatan**: Berbeda dengan Supabase (yang bisa diakses langsung dari browser lewat anon key REST), MongoDB tidak pernah diekspos ke klien. Seluruh akses database hanya terjadi **server-side**; browser hanya berkomunikasi dengan endpoint `/api/*` lewat `src/services/dbClient.ts`.
+
+### 3.2 Data Flow & Auto-Refresh
+- API routes memakai pola **"coba MongoDB dulu, fallback ke in-memory state"** — koneksi dicek sekali lalu disimpan sebagai singleton di `server/mongodb.ts`.
+- `useBarbershopData` hook melakukan polling ringan setiap 10 detik **hanya saat tab aktif**, plus re-fetch saat tab refocus/visibility change — menggantikan realtime subscription (yang sebelumnya memakai Supabase Realtime).
+- Data baru (booking, transaksi, dll.) langsung disinkronkan dua arah ke MongoDB oleh `server/state.ts` via `mongoRepo` (`seedIfEmpty`, `saveService`, `saveBooking`, `queryTransactions`, dll.).
+- Soft delete (`isDeleted: true`) dipakai di semua koleksi dan di-filter di setiap query.
 
 ### 3.3 AI Consultant Interaction Flow
 1. Pengguna mengisi form preferensi gaya rambut di `BookingSection.tsx`.
@@ -140,8 +141,8 @@ Aplikasi menggunakan pola ketahanan ganda (*dual-tier persistence resilience*):
 
 ## 4. Security Design & Policies
 
-- **Server-Side API Key Protection**: Kunci `GEMINI_API_KEY` dikelola murni pada environment server (`process.env.GEMINI_API_KEY`) dan tidak pernah diinjeksi ke frontend bundle.
-- **Supabase RLS (Row Level Security)**: Semua tabel memiliki RLS dengan policy `FOR ALL USING (true) WITH CHECK (true)` untuk anon role — mengizinkan full CRUD dari client-side. Admin users hanya bisa diakses oleh service_role.
+- **Server-Side API Key Protection**: Kunci `GEMINI_API_KEY` dan `MONGODB_URI` dikelola murni pada environment server dan tidak pernah diinjeksi ke frontend bundle.
+- **MongoDB Access Server-Only**: Kredensial MongoDB tidak pernah terekspos ke browser; tidak ada `NEXT_PUBLIC_*` untuk database. Browser hanya memanggil `/api/*`.
 - **Input Sanitization**: Seluruh string input pengguna pada nama, telepon, catatan, dan nama layanan disanitasi dari karakter tag HTML (`<`, `>`) untuk menolak upaya XSS.
 - **In-Memory Rate Limiting**: Endpoint publik seperti pembuatan reservasi dan konsultasi AI dilindungi dengan batas wajar (misal: 30 request/menit per IP) untuk mencegah DoS/bot spam.
 - **Security Headers**: Vercel `vercel.json` menambahkan `X-Content-Type-Options: nosniff`, `Strict-Transport-Security`, `Content-Security-Policy`, dan header keamanan lainnya.
@@ -156,5 +157,5 @@ Aplikasi menggunakan pola ketahanan ganda (*dual-tier persistence resilience*):
 
 ### 5.2 Vercel (Serverless / Static Deployment)
 - Framework terdeteksi otomatis sebagai **Next.js** — tidak perlu konfigurasi tambahan. `vercel.json` hanya menyediakan security headers & cache-control untuk aset statis.
-- Environment variables lengkap (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, opsional `GEMINI_API_KEY`) dikonfigurasi melalui dashboard Vercel.
-- Migrasi database berjalan otomatis saat server start (`DB_AUTO_MIGRATE=true`).
+- Environment variables parsial (`MONGODB_URI`, opsional `GEMINI_API_KEY` + `GEMINI_MODEL`) dikonfigurasi melalui dashboard Vercel.
+- Jika `MONGODB_URI` tidak diset di Vercel, aplikasi berjalan dengan penyimpanan in-memory di serverless function (data tidak persisten antar request). Untuk data permanen produksi, wajib mengisi `MONGODB_URI` (mis. MongoDB Atlas dengan network access `0.0.0.0/0`).

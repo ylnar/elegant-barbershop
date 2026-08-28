@@ -53,327 +53,193 @@ export const DatabaseBlueprintModal: React.FC<DatabaseBlueprintModalProps> = ({
   }, []);
 
 
-  // Generate full Supabase PostgreSQL DDL, RLS, & ACID POS Functions script
+  // Generate MongoDB collections, fields & index script
   const generateSqlScript = () => {
-    return `-- ========================================================================
--- ELEGANT BARBERSHOP SOLOK - PRODUCTION SUPABASE DATABASE SCHEMA
--- FOCUS: CATEGORIES, SERVICES, BARBERS, BOOKINGS & POS TRANSACTIONS (ACID)
--- Slogan: "Masuak Cayah Kalua Cogah" | Jl. Perwira No. 12 Kota Solok
--- ========================================================================
+    return `// ========================================================================
+// ELEGANT BARBERSHOP SOLOK - MONGO DB DATABASE SCHEMA
+// COLLECTIONS: settings, services, barbers, bookings, transactions, customers, admins, sessions
+// Slogan: "Masuak Cayah Kalua Cogah" | Jl. Perwira No. 12 Kota Solok
+// Dokumen disimpan dalam camelCase (sama dengan tipe TypeScript aplikasi),
+// setiap dokumen memiliki: id (unik), isDeleted (soft-delete),
+// createdAt & updatedAt (ISO timestamp).
+// ========================================================================
 
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+// Koneksi ke MongoDB (klien apa pun: mongosh / Compass / driver Node)
+//   Local : mongodb://localhost:27017/elegant_barbershop
+//   Atlas : mongodb+srv://user:pass@cluster0.xxxxx.mongodb.net/elegant_barbershop
+//
+// Jalankan via CLI aplikasi:
+//   npm run db:setup -- "<connection-string>"
+//   npm run db:status
+//   npm run db:seed
 
--- 1. TABLE: categories (Kategori Layanan & Pengelompokan POS)
-CREATE TABLE IF NOT EXISTS public.categories (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name VARCHAR(100) NOT NULL UNIQUE,
-    slug VARCHAR(100) NOT NULL UNIQUE,
-    icon VARCHAR(50) DEFAULT 'Scissors' NOT NULL,
-    description TEXT,
-    display_order INTEGER DEFAULT 0 NOT NULL,
-    is_active BOOLEAN DEFAULT TRUE NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-    updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
-);
+// ------------------------------------------------------------------------
+// 1. COLLECTION: services (Katalog Layanan & Pricelist Resmi)
+// ------------------------------------------------------------------------
+// {
+//   id: 'srv-1',                 // string, unik
+//   name: 'Premium',
+//   category: 'haircut',         // haircut | treatment | ...
+//   price: 45000,
+//   durationMinutes: 40,
+//   description: '',
+//   badge: undefined,            // label promosi opsional
+//   isActive: true,
+//   isDeleted: false,
+//   createdAt: '2026-08-27T00:00:00.000Z',
+//   updatedAt: '2026-08-27T00:00:00.000Z',
+// }
+db.services.createIndex({ id: 1 }, { unique: true });
+db.services.createIndex({ category: 1 });
+db.services.createIndex({ isActive: 1, isDeleted: 1 });
 
-CREATE INDEX IF NOT EXISTS idx_categories_slug ON public.categories(slug);
-CREATE INDEX IF NOT EXISTS idx_categories_active ON public.categories(is_active, display_order);
+// ------------------------------------------------------------------------
+// 2. COLLECTION: barbers (Tim Master Barber & Hairdresser)
+// ------------------------------------------------------------------------
+// {
+//   id: 'barber-1',
+//   name: 'Rian Pratama',
+//   phone: undefined,            // opsional
+//   isActive: true,
+//   workingDays: [0, 1, 2, 3, 4, 5, 6], // 0 = Minggu ...
+//   isDeleted: false,
+//   createdAt: '...',
+//   updatedAt: '...',
+// }
+db.barbers.createIndex({ id: 1 }, { unique: true });
+db.barbers.createIndex({ isActive: 1, isDeleted: 1 });
 
--- 2. TABLE: services (Katalog Layanan & Pricelist Resmi)
-CREATE TABLE IF NOT EXISTS public.services (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    category_id UUID REFERENCES public.categories(id) ON DELETE SET NULL,
-    category_slug VARCHAR(50) NOT NULL,
-    name VARCHAR(150) NOT NULL,
-    price NUMERIC(12, 2) NOT NULL CHECK (price >= 0),
-    duration_minutes INTEGER DEFAULT 35 NOT NULL CHECK (duration_minutes > 0),
-    description TEXT,
-    badge VARCHAR(50),
-    is_active BOOLEAN DEFAULT TRUE NOT NULL,
-    display_order INTEGER DEFAULT 0 NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-    updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
-);
+// ------------------------------------------------------------------------
+// 3. COLLECTION: bookings (Sistem Reservasi Online & Tiket Pelanggan)
+// ------------------------------------------------------------------------
+// {
+//   id: 'bk-...',
+//   bookingCode: 'ELG-8821',     // string, unik
+//   customerName: 'Rahmat',
+//   customerPhone: '6281234567890',
+//   customerEmail: undefined,
+//   serviceId: 'srv-1',
+//   serviceName: 'Premium',
+//   servicePrice: 45000,
+//   barberId: 'any',
+//   barberName: 'Barber Siap Pertama',
+//   date: '2026-08-27',          // YYYY-MM-DD (WIB)
+//   timeSlot: '14:00',
+//   totalAmount: 45000,
+//   status: 'pending',           // pending | confirmed | in_service | completed | cancelled
+//   isWalkIn: false,
+//   notes: undefined,
+//   isDeleted: false,
+//   createdAt: '...',
+//   updatedAt: '...',
+// }
+db.bookings.createIndex({ bookingCode: 1 }, { unique: true });
+db.bookings.createIndex({ customerPhone: 1 });
+db.bookings.createIndex({ date: 1, timeSlot: 1 });
+db.bookings.createIndex({ status: 1 });
+db.bookings.createIndex({ isDeleted: 1 });
 
-CREATE INDEX IF NOT EXISTS idx_services_category_slug ON public.services(category_slug);
-CREATE INDEX IF NOT EXISTS idx_services_category_id ON public.services(category_id);
-CREATE INDEX IF NOT EXISTS idx_services_active ON public.services(is_active);
+// ------------------------------------------------------------------------
+// 4. COLLECTION: transactions (Header Transaksi Kasir POS & Omzet)
+// ------------------------------------------------------------------------
+// {
+//   id: 'trx-...',
+//   invoiceNumber: 'TRX-2026-123', // string, unik
+//   bookingId: undefined,           // referensi bookings.id (opsional)
+//   customerName: 'Tamu Umum (Walk-in)',
+//   customerPhone: undefined,
+//   barberId: 'barber-1',
+//   barberName: 'Rian Pratama',
+//   items: [{ serviceId, serviceName, unitPrice, quantity, subtotal }],
+//   subtotal: 45000,
+//   discount: 0,
+//   totalAmount: 45000,
+//   paymentMethod: 'cash',        // cash | qris | transfer
+//   amountPaid: 50000,
+//   changeAmount: 5000,
+//   notes: undefined,
+//   isDeleted: false,
+//   createdAt: '...',
+// }
+db.transactions.createIndex({ invoiceNumber: 1 }, { unique: true });
+db.transactions.createIndex({ createdAt: -1 });
+db.transactions.createIndex({ paymentMethod: 1 });
+db.transactions.createIndex({ isDeleted: 1 });
 
--- 3. TABLE: barbers (Tim Master Barber & Hairdresser)
-CREATE TABLE IF NOT EXISTS public.barbers (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name VARCHAR(120) NOT NULL,
-    is_active BOOLEAN DEFAULT TRUE NOT NULL,
-    working_days INTEGER[] DEFAULT ARRAY[1,2,3,4,5,6,0]::INTEGER[],
-    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-    updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
-);
+// ------------------------------------------------------------------------
+// 5. COLLECTION: customers (Data Pelanggan Otomatis)
+// ------------------------------------------------------------------------
+// {
+//   id: 'cust-...',
+//   name: 'Rahmat',
+//   phone: '6281234567890',       // string, unik (ternormalisasi)
+//   email: undefined,
+//   totalBookings: 3,
+//   lastBookingDate: '2026-08-27',
+//   isActive: true,
+//   isDeleted: false,
+//   createdAt: '...',
+//   updatedAt: '...',
+// }
+db.customers.createIndex({ phone: 1 }, { unique: true });
+db.customers.createIndex({ isActive: 1, isDeleted: 1 });
 
-CREATE INDEX IF NOT EXISTS idx_barbers_active ON public.barbers(is_active);
+// ------------------------------------------------------------------------
+// 6. COLLECTION: settings (Pengaturan Global & Master Switch)
+// ------------------------------------------------------------------------
+// {
+//   key: 'default_settings',      // string, unik
+//   isBookingOpen: true,          // Master Switch booking online
+//   walkInOnlyMessage: '...',
+//   maintenanceMessage: '...',
+//   currentWalkInQueue: 2,
+//   estimatedWalkInWaitMinutes: 20,
+//   shopName: 'ELEGANT BARBERSHOP SOLOK',
+//   tagline: 'MASUAK CAYAH KALUA COGAH',
+//   address: '...',
+//   googleMapsUrl: '...',
+//   phone: '...',
+//   whatsappNumber: '...',
+//   email: '...',
+//   instagramHandle: '...',
+//   openTime: '10:00',
+//   closeTime: '22:00',
+//   slotIntervalMinutes: 30,
+//   maxSimultaneousBookingsPerSlot: 2,
+//   currency: 'IDR',
+// }
+db.settings.createIndex({ key: 1 }, { unique: true });
 
--- 4. TABLE: bookings (Sistem Reservasi Online & Tiket Pelanggan)
-CREATE TABLE IF NOT EXISTS public.bookings (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    booking_code VARCHAR(30) UNIQUE NOT NULL, -- e.g. ELG-8821
-    customer_name VARCHAR(120) NOT NULL,
-    customer_phone VARCHAR(30) NOT NULL,
-    customer_email VARCHAR(150),
-    service_id UUID REFERENCES public.services(id) ON DELETE SET NULL,
-    service_name VARCHAR(150) NOT NULL,
-    service_category VARCHAR(50),
-    service_price NUMERIC(12, 2) NOT NULL CHECK (service_price >= 0),
-    barber_id UUID REFERENCES public.barbers(id) ON DELETE SET NULL,
-    barber_name VARCHAR(120) NOT NULL,
-    date DATE NOT NULL,
-    time_slot VARCHAR(20) NOT NULL,
-    total_amount NUMERIC(12, 2) NOT NULL CHECK (total_amount >= 0),
-    status VARCHAR(30) DEFAULT 'pending' NOT NULL CHECK (status IN ('pending', 'confirmed', 'in_service', 'completed', 'cancelled')),
-    is_walk_in BOOLEAN DEFAULT FALSE NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-    updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
-);
+// ------------------------------------------------------------------------
+// 7. COLLECTION: admins (Akun Owner & Kasir — password ter-hash scrypt)
+// ------------------------------------------------------------------------
+// {
+//   id: 'admin-owner',            // string, unik
+//   username: 'owner',            // string, unik (login)
+//   passwordHash: '<hex scrypt>', // HASH — jangan pernah simpan plaintext
+//   passwordSalt: '<hex>',        // salt acak per user
+//   displayName: 'Owner',
+//   role: 'owner',                // owner | kasir
+//   isActive: true,
+//   createdAt: '...',
+// }
+db.admins.createIndex({ id: 1 }, { unique: true });
+db.admins.createIndex({ username: 1 }, { unique: true });
+db.admins.createIndex({ isActive: 1 });
 
-CREATE INDEX IF NOT EXISTS idx_bookings_code ON public.bookings(booking_code);
-CREATE INDEX IF NOT EXISTS idx_bookings_date_slot ON public.bookings(date, time_slot);
-CREATE INDEX IF NOT EXISTS idx_bookings_phone ON public.bookings(customer_phone);
-CREATE INDEX IF NOT EXISTS idx_bookings_status ON public.bookings(status);
-
--- 5. TABLE: transactions (Header Transaksi Kasir POS & Omzet)
-CREATE TABLE IF NOT EXISTS public.transactions (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    invoice_number VARCHAR(40) UNIQUE NOT NULL, -- e.g. INV-20260820-001
-    booking_id UUID REFERENCES public.bookings(id) ON DELETE SET NULL,
-    booking_code VARCHAR(30),
-    customer_name VARCHAR(120) NOT NULL,
-    customer_phone VARCHAR(30),
-    barber_id UUID REFERENCES public.barbers(id) ON DELETE SET NULL,
-    barber_name VARCHAR(120) NOT NULL,
-    cashier_name VARCHAR(120) DEFAULT 'Kasir Utama' NOT NULL,
-    subtotal NUMERIC(12, 2) NOT NULL CHECK (subtotal >= 0),
-    discount NUMERIC(12, 2) DEFAULT 0 NOT NULL CHECK (discount >= 0),
-    tax NUMERIC(12, 2) DEFAULT 0 NOT NULL CHECK (tax >= 0),
-    total_amount NUMERIC(12, 2) NOT NULL CHECK (total_amount >= 0),
-    payment_method VARCHAR(30) NOT NULL CHECK (payment_method IN ('cash', 'qris', 'transfer')),
-    payment_status VARCHAR(30) DEFAULT 'paid' NOT NULL CHECK (payment_status IN ('paid', 'pending', 'refunded')),
-    amount_paid NUMERIC(12, 2) DEFAULT 0 NOT NULL CHECK (amount_paid >= 0),
-    change_amount NUMERIC(12, 2) DEFAULT 0 NOT NULL CHECK (change_amount >= 0),
-    items JSONB DEFAULT '[]'::JSONB NOT NULL,
-    notes TEXT,
-    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
-);
-
-CREATE INDEX IF NOT EXISTS idx_transactions_invoice ON public.transactions(invoice_number);
-CREATE INDEX IF NOT EXISTS idx_transactions_created ON public.transactions(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_transactions_payment ON public.transactions(payment_method);
-
--- 6. TABLE: transaction_items (Rincian Item Transaksi per Baris)
-CREATE TABLE IF NOT EXISTS public.transaction_items (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    transaction_id UUID NOT NULL REFERENCES public.transactions(id) ON DELETE CASCADE,
-    service_id UUID REFERENCES public.services(id) ON DELETE SET NULL,
-    service_name VARCHAR(150) NOT NULL,
-    category_name VARCHAR(100),
-    unit_price NUMERIC(12, 2) NOT NULL CHECK (unit_price >= 0),
-    quantity INTEGER DEFAULT 1 NOT NULL CHECK (quantity > 0),
-    subtotal NUMERIC(12, 2) NOT NULL CHECK (subtotal >= 0),
-    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
-);
-
-CREATE INDEX IF NOT EXISTS idx_trx_items_transaction_id ON public.transaction_items(transaction_id);
-
--- 7. STORED FUNCTION: ACID POS Transaction Execution
-CREATE OR REPLACE FUNCTION public.fn_create_pos_transaction(
-    p_invoice_number VARCHAR(40),
-    p_booking_id UUID,
-    p_customer_name VARCHAR(120),
-    p_customer_phone VARCHAR(30),
-    p_barber_id UUID,
-    p_barber_name VARCHAR(120),
-    p_items JSONB,
-    p_subtotal NUMERIC,
-    p_discount NUMERIC,
-    p_total_amount NUMERIC,
-    p_payment_method VARCHAR(30),
-    p_amount_paid NUMERIC,
-    p_change_amount NUMERIC,
-    p_notes TEXT
-)
-RETURNS JSONB AS $$
-DECLARE
-    v_new_trx public.transactions%ROWTYPE;
-    v_inv VARCHAR(40);
-    v_bcode VARCHAR(30) := NULL;
-    v_item JSONB;
-    v_item_srv_id UUID;
-    v_item_name VARCHAR(150);
-    v_item_price NUMERIC;
-    v_item_qty INT;
-    v_item_subtotal NUMERIC;
-BEGIN
-    IF p_invoice_number IS NULL OR TRIM(p_invoice_number) = '' THEN
-        v_inv := 'INV-' || TO_CHAR(NOW(), 'YYYYMMDD') || '-' || LPAD(FLOOR(RANDOM() * 10000)::TEXT, 4, '0');
-    ELSE
-        v_inv := p_invoice_number;
-    END IF;
-
-    IF p_booking_id IS NOT NULL THEN
-        SELECT booking_code INTO v_bcode FROM public.bookings WHERE id = p_booking_id;
-    END IF;
-
-    INSERT INTO public.transactions (
-        invoice_number, booking_id, booking_code, customer_name, customer_phone,
-        barber_id, barber_name, items, subtotal, discount,
-        total_amount, payment_method, payment_status, amount_paid, change_amount, notes, created_at
-    ) VALUES (
-        v_inv, p_booking_id, v_bcode, p_customer_name, p_customer_phone,
-        p_barber_id, p_barber_name, COALESCE(p_items, '[]'::JSONB), p_subtotal, COALESCE(p_discount, 0),
-        p_total_amount, p_payment_method, 'paid', COALESCE(p_amount_paid, p_total_amount), COALESCE(p_change_amount, 0), p_notes, NOW()
-    ) RETURNING * INTO v_new_trx;
-
-    IF p_items IS NOT NULL AND jsonb_array_length(p_items) > 0 THEN
-        FOR v_item IN SELECT * FROM jsonb_array_elements(p_items)
-        LOOP
-            v_item_name := COALESCE(v_item->>'serviceName', 'Layanan Pangkas');
-            v_item_price := COALESCE((v_item->>'price')::NUMERIC, (v_item->>'unitPrice')::NUMERIC, 0);
-            v_item_qty := COALESCE((v_item->>'qty')::INT, (v_item->>'quantity')::INT, 1);
-            v_item_subtotal := v_item_price * v_item_qty;
-
-            BEGIN
-                v_item_srv_id := (v_item->>'serviceId')::UUID;
-            EXCEPTION WHEN OTHERS THEN
-                v_item_srv_id := NULL;
-            END;
-
-            INSERT INTO public.transaction_items (
-                transaction_id, service_id, service_name, unit_price, quantity, subtotal, created_at
-            ) VALUES (
-                v_new_trx.id, v_item_srv_id, v_item_name, v_item_price, v_item_qty, v_item_subtotal, NOW()
-            );
-        END LOOP;
-    END IF;
-
-    IF p_booking_id IS NOT NULL THEN
-        UPDATE public.bookings SET status = 'completed', updated_at = NOW() WHERE id = p_booking_id;
-    END IF;
-
-    RETURN to_jsonb(v_new_trx);
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- 8. ANALYTICAL VIEWS (SECURITY INVOKER FOR POSTGRES RLS)
-CREATE OR REPLACE VIEW public.v_booking_details
-WITH (security_invoker = true) AS
-SELECT
-    b.id,
-    b.booking_code,
-    b.customer_name,
-    b.customer_phone,
-    b.customer_email,
-    b.date,
-    b.time_slot,
-    b.status,
-    b.total_amount,
-    b.is_walk_in,
-    b.service_name,
-    b.service_price,
-    COALESCE(c.name, b.service_category, 'Haircut') AS category_name,
-    b.barber_name,
-    b.created_at,
-    b.updated_at
-FROM public.bookings b
-LEFT JOIN public.services s ON b.service_id = s.id
-LEFT JOIN public.categories c ON s.category_id = c.id
-LEFT JOIN public.barbers br ON b.barber_id = br.id;
-
-CREATE OR REPLACE VIEW public.v_transaction_reports
-WITH (security_invoker = true) AS
-SELECT
-    t.id AS transaction_id,
-    t.invoice_number,
-    t.customer_name,
-    t.customer_phone,
-    t.barber_name,
-    t.payment_method,
-    t.payment_status,
-    t.subtotal,
-    t.discount,
-    t.total_amount,
-    t.amount_paid,
-    t.change_amount,
-    t.created_at,
-    COALESCE(jsonb_agg(
-        jsonb_build_object(
-            'itemName', ti.service_name,
-            'unitPrice', ti.unit_price,
-            'quantity', ti.quantity,
-            'subtotal', ti.subtotal
-        )
-    ) FILTER (WHERE ti.id IS NOT NULL), '[]'::JSONB) AS item_breakdown
-FROM public.transactions t
-LEFT JOIN public.transaction_items ti ON t.id = ti.transaction_id
-GROUP BY t.id, t.invoice_number, t.customer_name, t.customer_phone, t.barber_name,
-         t.payment_method, t.payment_status, t.subtotal, t.discount, t.total_amount,
-         t.amount_paid, t.change_amount, t.created_at;
-
--- 9. ROW LEVEL SECURITY (RLS) POLICIES
-ALTER TABLE public.categories ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.services ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.barbers ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.bookings ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.transactions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.transaction_items ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Public Read Categories" ON public.categories FOR SELECT USING (true);
-CREATE POLICY "Admin All Categories" ON public.categories FOR ALL USING (auth.role() = 'authenticated' OR auth.role() = 'service_role');
-
-CREATE POLICY "Public Read Services" ON public.services FOR SELECT USING (true);
-CREATE POLICY "Admin All Services" ON public.services FOR ALL USING (auth.role() = 'authenticated' OR auth.role() = 'service_role');
-
-CREATE POLICY "Public Read Barbers" ON public.barbers FOR SELECT USING (true);
-CREATE POLICY "Admin All Barbers" ON public.barbers FOR ALL USING (auth.role() = 'authenticated' OR auth.role() = 'service_role');
-
-CREATE POLICY "Public Read Bookings" ON public.bookings FOR SELECT USING (true);
-CREATE POLICY "Public Insert Bookings" ON public.bookings FOR INSERT WITH CHECK (true);
-CREATE POLICY "Admin All Bookings" ON public.bookings FOR ALL USING (auth.role() = 'authenticated' OR auth.role() = 'service_role');
-
-CREATE POLICY "Public/Staff Read Transactions" ON public.transactions FOR SELECT USING (true);
-CREATE POLICY "Public/Staff Insert Transactions" ON public.transactions FOR INSERT WITH CHECK (true);
-CREATE POLICY "Admin All Transactions" ON public.transactions FOR ALL USING (auth.role() = 'authenticated' OR auth.role() = 'service_role');
-
-CREATE POLICY "Public/Staff Read Transaction Items" ON public.transaction_items FOR SELECT USING (true);
-CREATE POLICY "Public/Staff Insert Transaction Items" ON public.transaction_items FOR INSERT WITH CHECK (true);
-CREATE POLICY "Admin All Transaction Items" ON public.transaction_items FOR ALL USING (auth.role() = 'authenticated' OR auth.role() = 'service_role');
-
--- 10. SUPABASE REALTIME REPLICATION CONFIGURATION
-ALTER TABLE public.categories REPLICA IDENTITY FULL;
-ALTER TABLE public.services REPLICA IDENTITY FULL;
-ALTER TABLE public.barbers REPLICA IDENTITY FULL;
-ALTER TABLE public.bookings REPLICA IDENTITY FULL;
-ALTER TABLE public.transactions REPLICA IDENTITY FULL;
-ALTER TABLE public.transaction_items REPLICA IDENTITY FULL;
-
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'categories' AND schemaname = 'public') THEN
-        ALTER PUBLICATION supabase_realtime ADD TABLE public.categories;
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'services' AND schemaname = 'public') THEN
-        ALTER PUBLICATION supabase_realtime ADD TABLE public.services;
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'barbers' AND schemaname = 'public') THEN
-        ALTER PUBLICATION supabase_realtime ADD TABLE public.barbers;
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'bookings' AND schemaname = 'public') THEN
-        ALTER PUBLICATION supabase_realtime ADD TABLE public.bookings;
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'transactions' AND schemaname = 'public') THEN
-        ALTER PUBLICATION supabase_realtime ADD TABLE public.transactions;
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'transaction_items' AND schemaname = 'public') THEN
-        ALTER PUBLICATION supabase_realtime ADD TABLE public.transaction_items;
-    END IF;
-END $$;
+// ------------------------------------------------------------------------
+// 8. COLLECTION: sessions (Sesi Login Aktif — TTL 24 jam)
+// ------------------------------------------------------------------------
+// {
+//   token: '<hex acak>',          // string, unik (httpOnly cookie eb_session)
+//   adminId: 'admin-owner',       // referensi admins.id
+//   username: 'owner',            // snapshot saat login
+//   role: 'owner',
+//   createdAt: '...',
+//   expiresAt: '...',             // TTL index — terhapus otomatis
+// }
+db.sessions.createIndex({ token: 1 }, { unique: true });
+db.sessions.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 `;
   };
 
@@ -397,7 +263,7 @@ END $$;
                 Arsitektur Database & Sitemap Alur Kerja
               </h3>
               <p className="text-xs text-stone-400">
-                Dokumentasi struktur tabel relasional (User, Booking, Schedule, Settings) & workflow sistem
+                Dokumentasi struktur koleksi MongoDB (Bookings, Transactions, Services, Customers) & workflow sistem
               </p>
             </div>
           </div>
@@ -445,7 +311,7 @@ END $$;
             }`}
           >
             <Table className="w-4 h-4" />
-            <span>Kamus Kolom Tabel</span>
+            <span>Kamus Kolom Koleksi</span>
           </button>
 
           <button
@@ -457,7 +323,7 @@ END $$;
             }`}
           >
             <FileCode className="w-4 h-4" />
-            <span>Skrip SQL DDL (Postgres)</span>
+            <span>Skema Koleksi MongoDB</span>
           </button>
 
           <button
@@ -497,9 +363,9 @@ END $$;
                       <div className="flex items-center gap-2">
                         <h4 className="text-base font-bold text-white font-serif">
                           {dbStatus?.isConnected
-                            ? 'Database Supabase PostgreSQL Terhubung'
+                            ? 'Database MongoDB Terhubung'
                             : dbStatus?.isConfigured
-                            ? 'Kredensial Terdeteksi (Menunggu Migrasi Tabel)'
+                            ? 'Koneksi Terdeteksi (Menunggu Sinkronisasi Koleksi)'
                             : 'Mode Penyimpanan Aktif: In-Memory & Local Database'}
                         </h4>
                         <span
@@ -533,15 +399,18 @@ END $$;
                 {/* Table Detection Status Grid */}
                 <div className="pt-4 border-t border-stone-800">
                   <span className="text-[11px] font-bold text-stone-400 uppercase tracking-wider block mb-3">
-                    Status Sinkronisasi Tabel PostgreSQL:
+                    Status Sinkronisasi Koleksi MongoDB:
                   </span>
                   <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
                     {[
-                      { name: 'categories', label: 'Kategori Layanan', ready: dbStatus?.tables?.categories },
-                      { name: 'services', label: 'Pricelist & Paket', ready: dbStatus?.tables?.services },
+                      { name: 'services', label: 'Pricelist & Paket', ready: dbStatus?.tables?.categories },
+                      { name: 'services', label: 'Katalog Layanan', ready: dbStatus?.tables?.services },
                       { name: 'barbers', label: 'Data Master Barber', ready: dbStatus?.tables?.barbers },
                       { name: 'bookings', label: 'Antrean & Tiket', ready: dbStatus?.tables?.bookings },
                       { name: 'transactions', label: 'POS Kasir & Omzet', ready: dbStatus?.tables?.transactions },
+                      { name: 'customers', label: 'Riwayat Pelanggan', ready: dbStatus?.tables?.customers },
+                      { name: 'admins', label: 'Akun Owner & Kasir', ready: dbStatus?.tables?.admins },
+                      { name: 'sessions', label: 'Sesi Login Aktif', ready: dbStatus?.tables?.sessions },
                     ].map((tbl) => (
                       <div
                         key={tbl.name}
@@ -580,7 +449,7 @@ END $$;
                   </p>
                   <ul className="text-xs text-stone-400 space-y-1.5 list-disc list-inside">
                     <li>Semua fitur booking, tiket WhatsApp, kasir POS, filter tanggal, dan switch buka/tutup berjalan instan tanpa kendala.</li>
-                    <li>Jika kredensial Supabase diisi, seluruh data otomatis tersinkronisasi dua arah ke database Cloud PostgreSQL secara live.</li>
+                    <li>Jika <code className="text-[#D4AF37] bg-stone-900 px-1 py-0.5 rounded font-mono">MONGODB_URI</code> diatur, seluruh data otomatis tersinkronisasi dua arah ke database MongoDB secara live.</li>
                   </ul>
                 </div>
 
@@ -588,13 +457,13 @@ END $$;
                   <div className="flex items-center gap-2 text-[#D4AF37]">
                     <FileCode className="w-4 h-4" />
                     <h5 className="text-xs font-bold uppercase tracking-wider text-white">
-                      Langkah Menghubungkan Supabase Cloud
+                      Langkah Menghubungkan MongoDB Cloud / Local
                     </h5>
                   </div>
                   <ol className="text-xs text-stone-300 space-y-2 list-decimal list-inside leading-relaxed">
-                    <li>Buka tab <strong>Skrip SQL DDL (Postgres)</strong> di atas dan klik <strong>Salin Skrip SQL</strong>.</li>
-                    <li>Jalankan skrip tersebut di menu <strong>SQL Editor</strong> pada dashboard Supabase Anda.</li>
-                    <li>Pastikan variabel <code className="text-[#D4AF37] bg-stone-900 px-1 py-0.5 rounded font-mono">SUPABASE_URL</code>, <code className="text-[#D4AF37] bg-stone-900 px-1 py-0.5 rounded font-mono">SUPABASE_ANON_KEY</code>, dan <code className="text-[#D4AF37] bg-stone-900 px-1 py-0.5 rounded font-mono">SUPABASE_SERVICE_ROLE_KEY</code> diatur pada environment project.</li>
+                    <li>Buka tab <strong>Skema Koleksi MongoDB</strong> di atas dan klik <strong>Salin Skrip Skema</strong>.</li>
+                    <li>Jalankan skrip tersebut di <strong>mongosh / MongoDB Compass</strong>, atau lebih mudah gunakan CLI aplikasi: <code className="text-[#D4AF37] bg-stone-900 px-1 py-0.5 rounded font-mono">npm run db:setup</code>.</li>
+                    <li>Pastikan variabel <code className="text-[#D4AF37] bg-stone-900 px-1 py-0.5 rounded font-mono">MONGODB_URI</code> (mis. <code className="text-[#D4AF37] bg-stone-900 px-1 py-0.5 rounded font-mono">mongodb+srv://user:pass@cluster.mongodb.net/elegant_barbershop</code>) diatur pada environment project.</li>
                   </ol>
                 </div>
               </div>
@@ -607,14 +476,14 @@ END $$;
               <div className="p-4 rounded-xl bg-[#1A1A26] border border-[#D4AF37]/30 flex items-center justify-between">
                 <div>
                   <h4 className="text-xs font-bold text-white uppercase tracking-wider">
-                    Model Data Relasional Terintegrasi
+                    Model Data Koleksi Terintegrasi
                   </h4>
                   <p className="text-[11px] text-stone-400 mt-0.5">
-                    Dirancang dengan Normal Form ke-3 (3NF) untuk integritas transaksi booking & master switch.
+                    Dokumen camelCase (padanan tipe TypeScript) untuk integritas transaksi booking & master switch.
                   </p>
                 </div>
                 <span className="px-3 py-1 rounded-full bg-[#D4AF37]/20 text-[#D4AF37] text-xs font-bold">
-                  7 Tabel Utama
+                  {DATABASE_SCHEMA_BLUEPRINT.length} Koleksi Utama
                 </span>
               </div>
 
@@ -679,16 +548,16 @@ END $$;
                     services + barbers
                   </span>
                   <ArrowRight className="w-4 h-4 text-stone-500" />
-                  <span className="px-3 py-1.5 rounded-lg bg-[#1F1F2C] text-stone-200 border border-stone-700">
-                    schedules (Slot Cek)
-                  </span>
-                  <ArrowRight className="w-4 h-4 text-stone-500" />
                   <span className="px-3 py-1.5 rounded-lg bg-[#D4AF37]/20 text-[#D4AF37] border border-[#D4AF37]/40 font-bold">
-                    bookings (ELG-XXXX)
+                    bookings (Slot Cek & ELG-XXXX)
                   </span>
                   <ArrowRight className="w-4 h-4 text-stone-500" />
                   <span className="px-3 py-1.5 rounded-lg bg-[#1F1F2C] text-stone-200 border border-stone-700">
-                    reviews
+                    transactions (Kasir POS)
+                  </span>
+                  <ArrowRight className="w-4 h-4 text-stone-500" />
+                  <span className="px-3 py-1.5 rounded-lg bg-[#1F1F2C] text-stone-200 border border-stone-700">
+                    customers (Riwayat)
                   </span>
                 </div>
               </div>
@@ -703,7 +572,7 @@ END $$;
                   <div className="flex items-center justify-between pb-3 border-b border-stone-800 mb-4">
                     <div>
                       <h4 className="text-base font-bold font-mono text-[#D4AF37]">
-                        Tabel: {tbl.tableName}
+                        Koleksi: {tbl.tableName}
                       </h4>
                       <p className="text-xs text-stone-400 mt-0.5">{tbl.description}</p>
                     </div>
@@ -762,14 +631,14 @@ END $$;
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <span className="text-xs text-stone-400">
-                  Skrip DDL lengkap siap dieksekusi di PostgreSQL / Supabase / Cloud SQL / MySQL.
+                  Skema koleksi MongoDB lengkap siap dieksekusi di mongosh / MongoDB Compass / MongoDB Atlas.
                 </span>
                 <button
                   onClick={handleCopySql}
                   className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#D4AF37] hover:bg-[#E5C378] text-stone-950 font-bold text-xs uppercase tracking-wider transition-colors"
                 >
                   {copiedSql ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                  <span>{copiedSql ? 'Tersalin ke Clipboard!' : 'Salin Skrip SQL'}</span>
+                  <span>{copiedSql ? 'Tersalin ke Clipboard!' : 'Salin Skrip Skema'}</span>
                 </button>
               </div>
 

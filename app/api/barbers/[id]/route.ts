@@ -1,42 +1,37 @@
 import { serverStore } from '@server/state';
-import { json, readBody, sanitizeString } from '@lib/api';
-import { getServerSupabase } from '@server/supabase';
+import { json, apiError, readBody, sanitizeString } from '@lib/api';
+import { mongoRepo } from '@server/mongoRepo';
+import { requireAdminSession } from '@server/adminAuth';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 // PUT /api/barbers/:id
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  if (!(await requireAdminSession(req))) {
+    return apiError('Anda tidak berwenang. Silakan login sebagai admin.', 401);
+  }
   const { id } = await params;
   const updates = await readBody(req);
   if (updates.name) updates.name = sanitizeString(updates.name);
+  if (updates.phone !== undefined) updates.phone = sanitizeString(updates.phone);
   const existing = serverStore.getBarberById(id);
   if (!existing) {
     return json({ error: 'Barber tidak ditemukan.' }, 404);
   }
 
-  // Try Supabase first, fall back to in-memory
+  // Try MongoDB first, fall back to in-memory
   let persistedToDatabase = false;
-  const supabase = getServerSupabase();
-  if (supabase) {
-    try {
-      const payload: any = { updated_at: new Date().toISOString() };
-      if (updates.name) payload.name = updates.name;
-      if (updates.isActive !== undefined) payload.is_active = updates.isActive;
-      if (updates.workingDays) payload.working_days = updates.workingDays;
-
-      const { error } = await supabase.from('barbers').update(payload).eq('id', id);
-      if (!error) {
-        persistedToDatabase = true;
-      } else {
-        console.error('[Supabase Update Barber Error]:', error.message);
-      }
-    } catch (err) {
-      console.error('[Supabase Update Barber Error]:', err);
+  try {
+    persistedToDatabase = await mongoRepo.updateBarber(id, updates);
+    if (!persistedToDatabase) {
+      console.warn('[MongoDB Update Barber] tidak cocok dengan data di database');
     }
+  } catch (err) {
+    console.error('[MongoDB Update Barber Error]:', err);
   }
 
-  // Always update in-memory (persist=false since route already handled Supabase)
+  // Always update in-memory (persist=false since route already handled MongoDB)
   const updated = serverStore.updateBarber(id, updates, false);
   if (!updated) {
     return json({ error: 'Barber tidak ditemukan.' }, 404);
@@ -46,44 +41,39 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     success: true,
     barber: updated,
     message: persistedToDatabase
-      ? 'Barber berhasil diperbarui di database.'
+      ? 'Barber berhasil diperbarui di MongoDB.'
       : 'Barber berhasil diperbarui (mode lokal).',
   });
 }
 
 // DELETE /api/barbers/:id
-export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  if (!(await requireAdminSession(req))) {
+    return apiError('Anda tidak berwenang. Silakan login sebagai admin.', 401);
+  }
   const { id } = await params;
 
   if (!serverStore.getBarberById(id)) {
     return json({ error: 'Barber tidak ditemukan.' }, 404);
   }
 
-  // Try Supabase first, fall back to in-memory
+  // Try MongoDB first, fall back to in-memory
   let persistedToDatabase = false;
-  const supabase = getServerSupabase();
-  if (supabase) {
-    try {
-      const { error } = await supabase.from('barbers').update({
-        is_deleted: true,
-        deleted_at: new Date().toISOString(),
-      }).eq('id', id);
-      if (!error) {
-        persistedToDatabase = true;
-      } else {
-        console.error('[Supabase Delete Barber Error]:', error.message);
-      }
-    } catch (err) {
-      console.error('[Supabase Delete Barber Error]:', err);
+  try {
+    persistedToDatabase = await mongoRepo.deleteBarber(id);
+    if (!persistedToDatabase) {
+      console.warn('[MongoDB Delete Barber] tidak cocok dengan data di database');
     }
+  } catch (err) {
+    console.error('[MongoDB Delete Barber Error]:', err);
   }
 
-  // Always delete from in-memory (persist=false since route already handled Supabase)
+  // Always delete from in-memory (persist=false since route already handled MongoDB)
   serverStore.deleteBarber(id, false);
   return json({
     success: true,
     message: persistedToDatabase
-      ? 'Barber berhasil dihapus dari database.'
+      ? 'Barber berhasil dihapus dari MongoDB.'
       : 'Barber berhasil dihapus (mode lokal).',
   });
 }

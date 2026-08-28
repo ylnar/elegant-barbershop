@@ -52,6 +52,13 @@ function envBool(key: string, defaultValue = false): boolean {
   return raw === 'true' || raw === '1' || raw === 'on';
 }
 
+// ── JWT Config ─────────────────────────────────────────────────────────────
+
+export const jwtConfig = {
+  /** Secret key untuk sign/verify JWT token (mobile auth) */
+  secret: env('JWT_SECRET', { default: 'elegant-barbershop-jwt-secret-change-in-production' }),
+};
+
 // ── Server Config ────────────────────────────────────────────────────────────
 
 export const serverConfig = {
@@ -82,71 +89,61 @@ export const serverConfig = {
     return this.nodeEnv !== 'production';
   },
 
+  /** JWT secret untuk mobile auth */
+  get jwtSecret(): string {
+    return jwtConfig.secret;
+  },
+
   /** Display-friendly server URL */
   get displayUrl() {
     return `http://${this.host}:${this.port}`;
   },
 };
 
-// ── Supabase Config ──────────────────────────────────────────────────────────
+// ── MongoDB Config ───────────────────────────────────────────────────────────
 
-export const supabaseConfig = {
-  /** Supabase project URL (https://xxx.supabase.co) */
-  url: env('SUPABASE_URL'),
-
-  /** Anon key (public, untuk client browser) */
-  anonKey: env('SUPABASE_ANON_KEY'),
-
-  /** Service role key (server-side, full access) — HANYA di server */
-  serviceRoleKey: env('SUPABASE_SERVICE_ROLE_KEY'),
-
-  /** Database password (hanya untuk migrasi CLI) */
-  dbPassword: env('SUPABASE_DB_PASSWORD'),
-
+export const mongoConfig = {
   /**
-   * PostgreSQL connection string untuk migration CLI.
-   * Jika kosong, otomatis disusun dari dbPassword + host pattern.
+   * MongoDB connection string.
+   * Contoh:
+   *   - Local:  mongodb://localhost:27017/elegant_barbershop
+   *   - Atlas:  mongodb+srv://user:pass@cluster.mongodb.net/elegant_barbershop
    */
-  get databaseUrl(): string {
-    const explicit = env('DATABASE_URL');
-    if (explicit) return explicit;
+  uri: env('MONGODB_URI', {
+    default: 'mongodb://localhost:27017/elegant_barbershop',
+  }),
 
-    // Auto-compose dari project ref
-    if (this.dbPassword && this.url) {
-      const host = this.url.replace('https://', 'db.');
-      return `postgresql://postgres:${this.dbPassword}@${host.replace('.supabase.co', '')}.supabase.co:5432/postgres`;
-    }
+  /** Nama database MongoDB */
+  dbName: env('MONGODB_DB_NAME', {
+    default: env('MONGODB_URI').split('/').pop()?.split('?')[0] || 'elegant_barbershop',
+  }),
 
-    return '';
-  },
+  /** Timeout koneksi (ms) */
+  connectTimeoutMs: envInt('MONGODB_CONNECT_TIMEOUT_MS', {
+    default: 10000,
+  }),
 
-  /** Server-side client pakai service role key */
-  get serverKey(): string {
-    return this.serviceRoleKey || this.anonKey;
-  },
+  /** Jalankan seed data awal otomatis saat server boot (hanya jika database kosong) */
+  autoSeed: envBool('MONGODB_AUTO_SEED', true),
 
   get isConfigured(): boolean {
-    return Boolean(this.url && this.serverKey && this.url.startsWith('http'));
+    return Boolean(
+      this.uri &&
+        (this.uri.startsWith('mongodb://') || this.uri.startsWith('mongodb+srv://')),
+    );
   },
 
-  /** Deteksi detail masalah env Supabase untuk pesan error yang jelas */
+  /** Deteksi masalah env MongoDB untuk pesan error yang jelas */
   diagnose(): string[] {
     const issues: string[] = [];
-    if (!this.url) {
-      issues.push('SUPABASE_URL tidak terbaca oleh Functions');
-    } else if (!this.url.startsWith('http')) {
-      issues.push(`SUPABASE_URL tidak valid (harus diawali https://)`);
-    }
-    if (!this.serviceRoleKey) {
+    if (!this.uri) {
+      issues.push('MONGODB_URI belum diisi di .env');
+    } else if (!this.isConfigured) {
       issues.push(
-        this.anonKey
-          ? 'SUPABASE_SERVICE_ROLE_KEY tidak terbaca (yang terdeteksi hanya anon key)'
-          : 'SUPABASE_SERVICE_ROLE_KEY & SUPABASE_ANON_KEY tidak terbaca',
+        'MONGODB_URI tidak valid (harus diawali mongodb:// atau mongodb+srv://)',
       );
     }
-    return issues.length > 0
-      ? issues
-      : ['Konfigurasi terbaca, namun kredensial ditolak — cek nilai di dashboard Vercel'];
+    return issues;
   },
 };
 
@@ -205,11 +202,11 @@ export function printConfigSummary(): void {
   console.log('├─────────────────────────────────────────────┤');
   console.log(`│ 🌐 Server    : ${serverConfig.displayUrl.padEnd(28)}│`);
   console.log(`│ 🔧 Env       : ${serverConfig.nodeEnv.padEnd(28)}│`);
-  console.log(`│ 🗄️  Supabase  : ${(supabaseConfig.isConfigured ? '✅ Configured' : '⚠️  Not configured').padEnd(28)}│`);
-  if (supabaseConfig.url) {
-    console.log(`│    URL       : ${mask(supabaseConfig.url, 20).padEnd(28)}│`);
+  console.log(`│ 🗄️  MongoDB   : ${(mongoConfig.isConfigured ? '✅ Configured' : '⚠️  Not configured').padEnd(28)}│`);
+  if (mongoConfig.uri) {
+    console.log(`│    URI       : ${mask(mongoConfig.uri, 20).padEnd(28)}│`);
   }
   console.log(`│ 🤖 AI (Gemini): ${(aiConfig.isEnabled ? '✅ Enabled' : '⚠️  Disabled').padEnd(28)}│`);
-  console.log(`│ 🔄 Auto-Migrate: ${(dbConfig.autoMigrate ? '✅ ON' : '❌ OFF').padEnd(28)}│`);
+  console.log(`│ 🔄 Auto-Seed  : ${(mongoConfig.autoSeed ? '✅ ON' : '❌ OFF').padEnd(28)}│`);
   console.log('└─────────────────────────────────────────────┘');
 }

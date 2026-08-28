@@ -1,22 +1,21 @@
 import { Service } from '../types';
 import { INITIAL_SERVICES } from '../data/initialData';
 import { STORAGE_KEYS, getLocal, setLocal } from './storage';
-import { fetchServicesLive, dbCreateService, dbUpdateService, dbDeleteService, getSupabaseClient } from './supabaseClient';
+import { fetchServicesLive, dbCreateService, dbUpdateService, dbDeleteService } from './dbClient';
 
 export const servicesService = {
   async getServices(): Promise<Service[]> {
-    // 1. Direct Supabase client
+    // 1. Ambil dari server (MongoDB via API routes)
     try {
       const liveServices = await fetchServicesLive();
-      if (liveServices !== null) {
+      if (liveServices !== null && liveServices.length > 0) {
         setLocal(STORAGE_KEYS.SERVICES, liveServices);
         return liveServices;
       }
     } catch {
-      // Fall through to local cache
+      // Aksi lanjut ke cache lokal
     }
 
-    if (getSupabaseClient()) throw new Error('Gagal membaca layanan dari Supabase.');
     return getLocal<Service[]>(STORAGE_KEYS.SERVICES, INITIAL_SERVICES);
   },
 

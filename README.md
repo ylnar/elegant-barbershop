@@ -7,7 +7,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Next.js](https://img.shields.io/badge/Next.js-15-000000?logo=nextdotjs&logoColor=white)](https://nextjs.org/)
 [![TailwindCSS](https://img.shields.io/badge/TailwindCSS-v4.1-38B2AC?logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
-[![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3FCF8E?logo=supabase&logoColor=white)](https://supabase.com/)
+[![MongoDB](https://img.shields.io/badge/MongoDB-7-47A248?logo=mongodb&logoColor=white)](https://www.mongodb.com/)
 [![Google Gemini AI](https://img.shields.io/badge/Gemini-AI-8E75B2?logo=google&logoColor=white)](https://ai.google.dev/)
 
 ---
@@ -61,7 +61,7 @@
 | :--- | :--- | :--- |
 | **Frontend** | React 19, TypeScript, Tailwind CSS v4, Motion, Lucide Icons | Antarmuka interaktif, responsif, dan berperforma tinggi. |
 | **Fullstack** | Next.js 15 (App Router) | Landing page statis + REST API route handlers dalam satu framework. |
-| **Database** | Supabase PostgreSQL (`@supabase/supabase-js`) | Penyimpanan data transaksional dengan fallback in-memory. |
+| **Database** | MongoDB (`mongodb` driver, `@server/mongoRepo`) | Penyimpanan data transaksional dengan fallback in-memory. |
 | **AI Integration**| `@google/genai` (Gemini) | Rekomendasi model rambut terstruktur berbasis prompt engineering. |
 | **Build Tooling**| Next.js Compiler, TypeScript Compiler | Kompilasi produksi optimasi otomatis & type checking. |
 
@@ -75,14 +75,16 @@
 │   ├── layout.tsx             # Root layout (SEO, font, JSON-LD)
 │   ├── page.tsx               # Halaman utama (landing)
 │   └── api/                   # REST API route handlers
-│       ├── auth/              # Login & verifikasi sesi admin
+│       ├── auth/              # Sesuções admin (tanpa kata sandi / passphrase)
 │       ├── barbers/           # CRUD barber
 │       ├── bookings/          # Reservasi + pelacakan tiket
+│       ├── customers/         # Data pelanggan otomatis
 │       ├── services/          # CRUD layanan
 │       ├── transactions/      # Kasir POS
 │       ├── settings/          # Pengaturan & master switch
 │       └── ai-consultant/     # Rekomendasi AI Gemini
-├── server/                    # Logika domain bersama (state, Supabase, config)
+├── server/                    # Logika domain bersama (state, mongoRepo, mongodb, config)
+├── scripts/                   # CLI database MongoDB (db.mjs, seed-data.mjs)
 ├── src/                       # Source code Frontend React
 │   ├── assets/                # Gambar & aset visual resolusi tinggi
 │   ├── components/            # Komponen UI (Hero, Price List, AI, Admin, dll.)
@@ -124,15 +126,22 @@
    ```bash
    cp .env.example .env
    ```
-   Isi minimal `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, dan `SUPABASE_SERVICE_ROLE_KEY` dari dashboard Supabase. *(Isi `GEMINI_API_KEY` jika ingin mengaktifkan model AI Gemini.)*
+   Isi minimal `MONGODB_URI` (mis. `mongodb://localhost:27017/elegant_barbershop` untuk lokal, atau `mongodb+srv://...` untuk MongoDB Atlas). *(Isi `GEMINI_API_KEY` jika ingin mengaktifkan model AI Gemini.)*
 
-4. **Jalankan aplikasi dalam mode Development:**
+4. **Siapkan Database MongoDB (opsional, disarankan):**
+   ```bash
+   npm run db:setup        # buat koneksi, index, dan seed data awal
+   npm run db:status       # cek status koneksi & koleksi
+   ```
+   Tanpa MongoDB, aplikasi tetap 100% berfungsi via penyimpanan in-memory.
+
+5. **Jalankan aplikasi dalam mode Development:**
    ```bash
    npm run dev
    ```
    Aplikasi akan berjalan di `http://localhost:3000`.
 
-5. **Linting & Build Check:**
+6. **Linting & Build Check:**
    ```bash
    npm run lint
    npm run build
@@ -144,16 +153,18 @@
 
 | Variable | Wajib/Opsional | Deskripsi |
 | :--- | :--- | :--- |
-| `NEXT_PUBLIC_SUPABASE_URL` | Wajib | URL project Supabase untuk client-side (`https://xxx.supabase.co`). |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Wajib | Anon/public key Supabase untuk client-side. |
-| `SUPABASE_URL` | Wajib | URL project Supabase untuk server-side (API routes, Edge Functions). |
-| `SUPABASE_ANON_KEY` | Wajib | Anon key untuk server-side. |
-| `SUPABASE_SERVICE_ROLE_KEY` | Wajib | Service role key — hanya untuk server, jangan pernah diekspos ke browser. |
-| `DATABASE_URL` | Opsional | Connection string PostgreSQL untuk tooling migrasi CLI. |
-| `DB_AUTO_MIGRATE` | Opsional | `true`/`false` — terapkan migrasi otomatis saat setup lokal. Default: `true`. |
+| `MONGODB_URI` | Opsional* | Connection string MongoDB, mis. `mongodb://localhost:27017/elegant_barbershop` (lokal) atau `mongodb+srv://user:pass@cluster.mongodb.net/elegant_barbershop` (Atlas). |
+| `MONGODB_DB_NAME` | Opsional | Nama database MongoDB. Default: `elegant_barbershop`. |
+| `MONGODB_CONNECT_TIMEOUT_MS` | Opsional | Timeout koneksi dalam milidetik. Default: `8000`. |
+| `MONGODB_AUTO_SEED` | Opsional | `true`/`false` — otomatis isi data awal (seed) saat server start. Default: `true`. |
 | `GEMINI_API_KEY` | Opsional | Kunci API Google Gemini untuk fitur AI Barber Consultant. *(Jika tidak diisi, sistem fallback ke heuristic master barber).* |
+| `GEMINI_MODEL` | Opsional | Model Gemini yang dipakai. Default: `gemini-3.7-flash`. |
 
-> **Penting**: Client-side code hanya bisa membaca env var yang diawali `NEXT_PUBLIC_`. Server-side code membutuhkan versi tanpa prefix.
+> **\* Tanpa MongoDB**: Aplikasi berjalan normal menggunakan **penyimpanan in-memory di server**. Setiap data yang dibuat (
+booking, transaksi, dll.) tetap tersimpan selama server hidup — tetapi hilang ketika server restart. Hubungkan MongoDB
+untuk penyimpanan permanen yang aman.
+
+> **Penting**: Semua akses MongoDB berjalan **server-side** (API routes / Node.js) — kredensial tidak pernah terekspos ke browser. Klien mengakses data lewat endpoint `/api/*`.
 
 ---
 
@@ -164,7 +175,7 @@ Proyek ini sudah dilengkapi dengan konfigurasi `vercel.json`:
 1. Push repository ke GitHub.
 2. Buka [Vercel Dashboard](https://vercel.com/) dan import repository Anda.
 3. Framework Preset terdeteksi otomatis: **Next.js**.
-4. Masukkan Environment Variables (lengkap: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, opsional `GEMINI_API_KEY`).
+4. Masukkan Environment Variables (minimal `MONGODB_URI`; opsional `GEMINI_API_KEY` dan `GEMINI_MODEL`).
 5. Klik **Deploy**.
 
 ### 2. Deploy ke Cloud Run / Docker / VPS
@@ -174,18 +185,70 @@ Next.js dapat dijalankan sebagai server mandiri:
 
 ---
 
-## 📚 Database Migrasi
+## 🗄️ Menghubungkan MongoDB
 
-Migrasi dikonsolidasi menjadi 2 file:
-- `supabase/migrations/001_schema.sql` — Skema lengkap (tabel, index, trigger, stored procedures, views, RLS, grants, realtime)
-- `supabase/migrations/002_seed.sql` — Data awal (categories, services, barbers, admin users, settings)
+Aplikasi kini menggunakan **MongoDB** sebagai basis data utama (menggantikan Supabase/PostgreSQL). Struktur data
+disimpan sebagai dokumen dengan field **camelCase** (sama persis dengan tipe TypeScript domain aplikasi), lengkap
+dengan soft-delete (`isDeleted`) dan timestamp (`createdAt` / `updatedAt`).
 
-Jalankan migrasi:
+### Opsi A — MongoDB Lokal (Windows / Linux)
+
+1. **Install MongoDB Community Server** dari situs resmi MongoDB, lalu pastikan layanan `mongod` berjalan.
+2. Buat database `elegant_barbershop` (otomatis dibuat saat koneksi pertama).
+3. Konfigurasikan environment:
+   ```
+   MONGODB_URI="mongodb://localhost:27017/elegant_barbershop"
+   MONGODB_DB_NAME="elegant_barbershop"
+   MONGODB_AUTO_SEED="true"
+   ```
+4. Jalankan setup & seed:
+   ```bash
+   npm run db:setup
+   npm run db:status
+   ```
+
+### Opsi B — MongoDB Atlas (Cloud Gratis)
+
+1. Daftar di https://www.mongodb.com/atlas → build cluster **M0 (Free)**.
+2. Buat user database & whitelist IP (disarankan `0.0.0.0/0` + autentikasi user kuat).
+   > ⚠️ IP rumah Anda dinamis (berubah). Bila memakai IP tertentu saja lalu koneksi tiba-tiba gagal dengan `tlsv1 alert internal error`, tambahkan IP publik terbaru di **Network Access** (atau gunakan `0.0.0.0/0` — wajib jika app di-deploy ke Vercel).
+3. Salin connection string (**Database ➜ Connect ➜ Drivers**) berbentuk:
+   ```
+   mongodb+srv://<user>:<password>@cluster0.xxxxx.mongodb.net/?retryWrites=true&w=majority
+   ```
+4. Isi ke environment (tambahkan nama database setelah `/`):
+   ```
+   MONGODB_URI="mongodb+srv://<user>:<password>@cluster0.xxxxx.mongodb.net/elegant_barbershop"
+   ```
+5. Jalankan `npm run db:setup` untuk membuat index unik & seed data awal.
+
+### Koleksi yang Digunakan
+
+| Koleksi | Konten |
+| :--- | :--- |
+| `settings` | Master switch buka/tutup booking, jam operasional, kontak outlet |
+| `services` | Katalog layanan & pricelist resmi |
+| `barbers` | Data tim master barber |
+| `bookings` | Reservasi online & tiket `ELG-XXXX` |
+| `transactions` | Transaksi kasir POS (invoice `TRX-...`) |
+| `customers` | Data pelanggan otomatis dari booking & transaksi |
+| `admins` | Akun owner/kasir — password ter-hash scrypt (seed: `owner` / `owner123`) |
+| `sessions` | Sesi login aktif (httpOnly cookie `eb_session`, TTL 24 jam) |
+
+> 🔐 Sejak migrasi, **dashboard wajib login dulu**: buka `/login` (atau akses `/dashboard`), isi `owner` / `owner123`, baru masuk ke panel. Semua kredensial & sesi tersimpan di MongoDB.
+
+### CLI Database (scripts/db.mjs)
+
 ```bash
-npm run db:migrate
+npm run db:setup     # Koneksi + buat index unik (bookingCode, invoiceNumber, phone, dll.)
+npm run db:status    # Status koneksi, jumlah dokumen per koleksi
+npm run db:doctor    # Diagnosa & tampilkan dokumen terbaru
+npm run db:seed      # Isi ulang data awal (seed)
+npm run db:reset     # Hapus semua koleksi lalu seed ulang (HATI-HATI)
 ```
 
-Migrasi berjalan otomatis saat server start jika `DB_AUTO_MIGRATE=true`.
+> Seed otomatis juga berjalan saat server start jika variabel `MONGODB_AUTO_SEED=true`.
+> Tanpa MongoDB, seluruh fitur tetap berjalan via penyimpanan in-memory di server — namun data hilang saat restart.
 
 ---
 

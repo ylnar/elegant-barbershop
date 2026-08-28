@@ -12,7 +12,8 @@ import {
   SystemSettings,
   Transaction,
 } from '../src/types';
-import { SupabaseRepo } from './supabaseRepo';
+import { mongoRepo } from './mongoRepo';
+import { mongoConfig } from './config';
 
 class ServerStore {
   private settings: SystemSettings = { ...INITIAL_SETTINGS };
@@ -23,18 +24,34 @@ class ServerStore {
   private isInitialized = false;
 
   constructor() {
-    this.initSupabaseSync();
+    this.boot();
   }
 
-  private async initSupabaseSync() {
+  private async boot() {
+    try {
+      if (!mongoConfig.isConfigured) {
+        console.log('ℹ️ MongoDB tidak dikonfigurasi — beroperasi mode in-memory.');
+        return;
+      }
+      const seedResult = await mongoRepo.seedIfEmpty();
+      if (seedResult.seeded) {
+        console.log(`🌱 MongoDB seeded (services=${seedResult.services}, barbers=${seedResult.barbers})`);
+      }
+      await this.initMongoSync();
+    } catch (err) {
+      console.log('ℹ️ MongoDB tidak aktif atau memakai fallback state in-memory');
+    }
+  }
+
+  private async initMongoSync() {
     try {
       const [remoteSettings, remoteServices, remoteBarbers, remoteBookings, remoteTransactions] =
         await Promise.all([
-          SupabaseRepo.fetchSettings(),
-          SupabaseRepo.fetchServices(),
-          SupabaseRepo.fetchBarbers(),
-          SupabaseRepo.fetchBookings(),
-          SupabaseRepo.fetchTransactions(),
+          mongoRepo.fetchSettings(),
+          mongoRepo.fetchServices(),
+          mongoRepo.fetchBarbers(),
+          mongoRepo.fetchBookings(),
+          mongoRepo.fetchTransactions(),
         ]);
 
       if (remoteSettings) this.settings = remoteSettings;
@@ -44,9 +61,9 @@ class ServerStore {
       if (remoteTransactions && remoteTransactions.length > 0) this.transactions = remoteTransactions;
 
       this.isInitialized = true;
-      console.log('⚡ ServerStore synced with Supabase PostgreSQL');
+      console.log('⚡ ServerStore synced with MongoDB');
     } catch (err) {
-      console.log('ℹ️ Supabase not active or using local fallback state');
+      console.log('ℹ️ MongoDB sync failed — memakai fallback state in-memory');
     }
   }
 
@@ -58,7 +75,7 @@ class ServerStore {
   updateSettings(updates: Partial<SystemSettings>, persist = true): SystemSettings {
     this.settings = { ...this.settings, ...updates };
     if (persist) {
-      void SupabaseRepo.saveSettings(this.settings);
+      void mongoRepo.saveSettings(this.settings);
     }
     return { ...this.settings };
   }
@@ -69,7 +86,7 @@ class ServerStore {
     } else {
       this.settings.isBookingOpen = !this.settings.isBookingOpen;
     }
-    void SupabaseRepo.saveSettings(this.settings);
+    void mongoRepo.saveSettings(this.settings);
     return {
       isBookingOpen: this.settings.isBookingOpen,
       message: this.settings.isBookingOpen
@@ -94,7 +111,7 @@ class ServerStore {
   addService(service: Service, persist = true): Service {
     this.services.push(service);
     if (persist) {
-      void SupabaseRepo.insertService(service);
+      void mongoRepo.insertService(service);
     }
     return service;
   }
@@ -104,7 +121,7 @@ class ServerStore {
     if (idx === -1) return null;
     this.services[idx] = { ...this.services[idx], ...updates };
     if (persist) {
-      void SupabaseRepo.updateService(id, updates);
+      void mongoRepo.updateService(id, updates);
     }
     return this.services[idx];
   }
@@ -113,7 +130,7 @@ class ServerStore {
     const prevLen = this.services.length;
     this.services = this.services.filter((s) => s.id !== id);
     if (persist) {
-      void SupabaseRepo.deleteService(id);
+      void mongoRepo.deleteService(id);
     }
     return this.services.length < prevLen;
   }
@@ -134,7 +151,7 @@ class ServerStore {
   addBarber(barber: Barber, persist = true): Barber {
     this.barbers.push(barber);
     if (persist) {
-      void SupabaseRepo.insertBarber(barber);
+      void mongoRepo.insertBarber(barber);
     }
     return barber;
   }
@@ -144,7 +161,7 @@ class ServerStore {
     if (idx === -1) return null;
     this.barbers[idx] = { ...this.barbers[idx], ...updates };
     if (persist) {
-      void SupabaseRepo.updateBarber(id, updates);
+      void mongoRepo.updateBarber(id, updates);
     }
     return this.barbers[idx];
   }
@@ -153,7 +170,7 @@ class ServerStore {
     const prevLen = this.barbers.length;
     this.barbers = this.barbers.filter((b) => b.id !== id);
     if (persist) {
-      void SupabaseRepo.deleteBarber(id);
+      void mongoRepo.deleteBarber(id);
     }
     return this.barbers.length < prevLen;
   }
@@ -170,7 +187,7 @@ class ServerStore {
   addBooking(booking: Booking, persist = true): Booking {
     this.bookings.unshift(booking);
     if (persist) {
-      void SupabaseRepo.insertBooking(booking);
+      void mongoRepo.insertBooking(booking);
     }
     return booking;
   }
@@ -184,7 +201,7 @@ class ServerStore {
       updatedAt: new Date().toISOString(),
     };
     if (persist) {
-      void SupabaseRepo.updateBooking(id, updates);
+      void mongoRepo.updateBooking(id, updates);
     }
     return this.bookings[idx];
   }
@@ -193,7 +210,7 @@ class ServerStore {
     const prevLen = this.bookings.length;
     this.bookings = this.bookings.filter((b) => b.id !== id && b.bookingCode !== id);
     if (persist) {
-      void SupabaseRepo.deleteBooking(id);
+      void mongoRepo.deleteBooking(id);
     }
     return this.bookings.length < prevLen;
   }
@@ -210,7 +227,7 @@ class ServerStore {
   addTransaction(trx: Transaction, persist = true): Transaction {
     this.transactions.unshift(trx);
     if (persist) {
-      void SupabaseRepo.insertTransaction(trx);
+      void mongoRepo.insertTransaction(trx);
     }
     // Mark associated booking as completed if applicable
     if (trx.bookingId) {
@@ -223,7 +240,7 @@ class ServerStore {
     const prevLen = this.transactions.length;
     this.transactions = this.transactions.filter((t) => t.id !== id);
     if (persist) {
-      void SupabaseRepo.deleteTransaction(id);
+      void mongoRepo.deleteTransaction(id);
     }
     return this.transactions.length < prevLen;
   }

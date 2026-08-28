@@ -1,47 +1,23 @@
-import { getServerSupabase } from '@server/supabase';
+import { NextRequest } from 'next/server';
 import { json } from '@lib/api';
+import { SESSION_COOKIE, getSessionUser } from '@server/adminAuth';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 /**
  * GET /api/auth/verify
- * Verify current session is still valid
+ * Cek sesi admin aktif (cookie `eb_session`). Dipakai untuk melindungi
+ * dashboard: tanpa sesi valid -> { valid: false } (status 200 agar mudah
+ * ditangani client).
  */
-export async function GET(req: Request) {
-  try {
-    const userId = req.headers.get('x-user-id');
-    if (!userId) {
-      return json({ valid: false }, 401);
-    }
+export async function GET(req: NextRequest) {
+  const token = req.cookies.get(SESSION_COOKIE)?.value;
+  const user = await getSessionUser(token);
 
-    const supabase = getServerSupabase();
-    if (!supabase) {
-      return json({ valid: false, error: 'Database tidak tersedia.' }, 503);
-    }
-
-    const { data: user, error } = await supabase
-      .from('admin_users')
-      .select('id, username, display_name, role, is_active')
-      .eq('id', userId)
-      .eq('is_active', true)
-      .single();
-
-    if (error || !user) {
-      return json({ valid: false }, 401);
-    }
-
-    return json({
-      valid: true,
-      user: {
-        id: user.id,
-        username: user.username,
-        displayName: user.display_name,
-        role: user.role,
-      },
-    });
-  } catch (err: any) {
-    console.error('[Auth Verify Error]:', err?.message || err);
-    return json({ valid: false }, 500);
+  if (!user) {
+    return json({ valid: false, user: null });
   }
+
+  return json({ valid: true, user });
 }

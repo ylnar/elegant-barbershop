@@ -2,35 +2,19 @@ import { Transaction, TransactionItem } from '../types';
 import { INITIAL_TRANSACTIONS } from '../data/initialData';
 import { STORAGE_KEYS, getLocal, setLocal } from './storage';
 import { toLocalDateStr } from '../utils/formatters';
-import { fetchTransactionsLive, dbCreateTransaction, dbDeleteTransaction, getSupabaseClient } from './supabaseClient';
+import { fetchTransactionsLive, fetchBarbersLive, dbCreateTransaction, dbDeleteTransaction } from './dbClient';
 
 export const transactionsService = {
   async getTransactions(filters?: { date?: string; paymentMethod?: string; search?: string }): Promise<Transaction[]> {
-    // 1. Direct Supabase client
+    // 1. Ambil dari server (MongoDB via API routes)
     try {
-      const liveTransactions = await fetchTransactionsLive();
-      if (liveTransactions !== null) {
+      const liveTransactions = await fetchTransactionsLive(filters);
+      if (liveTransactions !== null && liveTransactions.length > 0) {
         setLocal(STORAGE_KEYS.TRANSACTIONS, liveTransactions);
-        let list = liveTransactions;
-        if (filters?.date) {
-          list = list.filter((t) => toLocalDateStr(t.createdAt) === filters.date!);
-        }
-        if (filters?.paymentMethod && filters.paymentMethod !== 'all') {
-          list = list.filter((t) => t.paymentMethod === filters.paymentMethod);
-        }
-        if (filters?.search) {
-          const q = filters.search.toLowerCase();
-          list = list.filter(
-            (t) =>
-              t.invoiceNumber.toLowerCase().includes(q) ||
-              t.customerName.toLowerCase().includes(q) ||
-              (t.customerPhone && t.customerPhone.includes(q))
-          );
-        }
-        return list;
+        return liveTransactions;
       }
     } catch {
-      // Fall through to local cache
+      // Aksi lanjut ke cache lokal
     }
 
     // 2. Local cache fallback
@@ -47,7 +31,7 @@ export const transactionsService = {
         (t) =>
           t.invoiceNumber.toLowerCase().includes(q) ||
           t.customerName.toLowerCase().includes(q) ||
-          (t.customerPhone && t.customerPhone.includes(q))
+          (t.customerPhone && t.customerPhone.includes(q)),
       );
     }
     return list;
@@ -67,18 +51,16 @@ export const transactionsService = {
     changeAmount: number;
     notes?: string;
   }): Promise<Transaction> {
-    const client = getSupabaseClient();
-    if (!client) throw new Error('Supabase belum terkonfigurasi.');
-
-    // Fetch barber name
+    // Ambil nama barber dari server API
     let barberName = 'Staff Barber';
-    if (transactionData.barberId && transactionData.barberId.length > 10) {
-      const { data: barberData } = await client
-        .from('barbers')
-        .select('name')
-        .eq('id', transactionData.barberId)
-        .single();
-      if (barberData) barberName = barberData.name;
+    if (transactionData.barberId && transactionData.barberId !== 'barber-1') {
+      try {
+        const barbers = await fetchBarbersLive();
+        const barber = barbers?.find((b) => b.id === transactionData.barberId);
+        if (barber) barberName = barber.name;
+      } catch {
+        // pakai default
+      }
     }
 
     // Generate invoice number
@@ -111,21 +93,13 @@ export const transactionsService = {
   },
 
   async deleteTransaction(id: string): Promise<boolean> {
-    // Try Supabase first — only if ID is a valid UUID (length > 20)
-    if (id.length > 20) {
-      try {
-        await dbDeleteTransaction(id);
-      } catch (e: any) {
-        console.error('[Supabase Delete Transaction]:', e.message);
-        throw e;
-      }
-      // ✅ Update local cache after successful Supabase delete
-      const list = getLocal<Transaction[]>(STORAGE_KEYS.TRANSACTIONS, INITIAL_TRANSACTIONS).filter((t) => t.id !== id);
-      setLocal(STORAGE_KEYS.TRANSACTIONS, list);
-      return true;
+    try {
+      await dbDeleteTransaction(id);
+    } catch (e: any) {
+      console.error('[DB Delete Transaction]:', e?.message || e);
+      throw e;
     }
-
-    // Local-only fallback when Supabase is not configured
+    // Update local cache
     const list = getLocal<Transaction[]>(STORAGE_KEYS.TRANSACTIONS, INITIAL_TRANSACTIONS).filter((t) => t.id !== id);
     setLocal(STORAGE_KEYS.TRANSACTIONS, list);
     return true;

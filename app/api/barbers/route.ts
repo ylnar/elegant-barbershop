@@ -1,35 +1,22 @@
 import { serverStore } from '@server/state';
 import { Barber } from '@/types';
-import { json, readBody, sanitizeString } from '@lib/api';
-import { getServerSupabase } from '@server/supabase';
+import { json, apiError, readBody, sanitizeString } from '@lib/api';
+import { mongoRepo } from '@server/mongoRepo';
+import { requireAdminSession } from '@server/adminAuth';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-// GET /api/barbers - Always fetch fresh dynamic data from Supabase
+// GET /api/barbers - Always fetch fresh dynamic data from MongoDB
 export async function GET() {
   try {
-    const supabase = getServerSupabase();
-    if (supabase) {
-      const { data, error } = await supabase
-        .from('barbers')
-        .select('*')
-        .eq('is_deleted', false)
-        .order('created_at', { ascending: false });
-
-      if (!error && data && data.length > 0) {
-        const mapped: Barber[] = data.map((b: any) => ({
-          id: String(b.id),
-          name: b.name || 'Barber',
-          isActive: b.is_active !== undefined ? Boolean(b.is_active) : true,
-          workingDays: Array.isArray(b.working_days) ? b.working_days : [0, 1, 2, 3, 4, 5, 6],
-        }));
-        serverStore.setBarbers(mapped);
-        return json(mapped);
-      }
+    const remote = await mongoRepo.fetchBarbers();
+    if (remote) {
+      serverStore.setBarbers(remote);
+      return json(remote);
     }
   } catch (err) {
-    console.warn('[Barbers Route] Remote fetch error:', err);
+    console.warn('[Barbers Route] MongoDB fetch error:', err);
   }
 
   return json(serverStore.getBarbers());
@@ -37,6 +24,9 @@ export async function GET() {
 
 // POST /api/barbers
 export async function POST(req: Request) {
+  if (!(await requireAdminSession(req))) {
+    return apiError('Anda tidak berwenang. Silakan login sebagai admin.', 401);
+  }
   const body = await readBody(req);
   const name = sanitizeString(body.name);
   if (!name) {
@@ -46,38 +36,30 @@ export async function POST(req: Request) {
   const newBarber: Barber = {
     id: body.id || `barber-${Date.now()}`,
     name,
+    phone: body.phone ? sanitizeString(body.phone) : undefined,
     isActive: body.isActive !== false,
     workingDays: Array.isArray(body.workingDays) ? body.workingDays : [0, 1, 2, 3, 4, 5, 6],
   };
 
-  // Try Supabase first, fall back to in-memory
+  // Try MongoDB first, fall back to in-memory
   let persistedToDatabase = false;
-  const supabase = getServerSupabase();
-  if (supabase) {
-    try {
-      const { error } = await supabase.from('barbers').insert({
-        name: newBarber.name,
-        is_active: newBarber.isActive,
-        working_days: newBarber.workingDays,
-      });
-      if (!error) {
-        persistedToDatabase = true;
-      } else {
-        console.error('[Supabase Insert Barber Error]:', error.message);
-      }
-    } catch (err) {
-      console.error('[Supabase Insert Barber Error]:', err);
+  try {
+    persistedToDatabase = await mongoRepo.insertBarber(newBarber);
+    if (!persistedToDatabase) {
+      console.error('[MongoDB Insert Barber Error]: simpan gagal');
     }
+  } catch (err) {
+    console.error('[MongoDB Insert Barber Error]:', err);
   }
 
-  // Always store in-memory (persist=false since route already handled Supabase)
+  // Always store in-memory (persist=false since route already handled MongoDB)
   const created = serverStore.addBarber(newBarber, false);
   return json(
     {
       success: true,
       barber: created,
       message: persistedToDatabase
-        ? 'Barber berhasil disimpan ke database.'
+        ? 'Barber berhasil disimpan ke MongoDB.'
         : 'Barber berhasil disimpan (mode lokal).',
     },
     201,

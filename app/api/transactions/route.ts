@@ -1,7 +1,8 @@
 import { serverStore } from '@server/state';
 import { Transaction } from '@/types';
-import { json, queryOf, readBody, sanitizeString } from '@lib/api';
-import { getServerSupabase } from '@server/supabase';
+import { json, apiError, queryOf, readBody, sanitizeString } from '@lib/api';
+import { mongoRepo } from '@server/mongoRepo';
+import { requireAdminSession } from '@server/adminAuth';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -12,51 +13,18 @@ export async function GET(req: Request) {
   const date = sp.get('date');
   const paymentMethod = sp.get('paymentMethod');
   const search = sp.get('search');
-  const supabase = getServerSupabase();
 
-  if (supabase) {
-    try {
-      let query = supabase.from('transactions').select('*').eq('is_deleted', false).order('created_at', { ascending: false });
-
-      if (date) {
-        // Convert local WIB date (UTC+7) to UTC range for proper comparison
-        const startUTC = new Date(`${date}T00:00:00+07:00`).toISOString();
-        const endUTC = new Date(`${date}T23:59:59+07:00`).toISOString();
-        query = query.gte('created_at', startUTC).lte('created_at', endUTC);
-      }
-      if (paymentMethod && paymentMethod !== 'all') {
-        query = query.eq('payment_method', String(paymentMethod));
-      }
-      if (search) {
-        const q = String(search);
-        query = query.or(`invoice_number.ilike.%${q}%,customer_name.ilike.%${q}%,customer_phone.ilike.%${q}%,barber_name.ilike.%${q}%`);
-      }
-
-      const { data, error } = await query;
-      if (!error && data && data.length > 0) {
-        const formatted: Transaction[] = data.map((t: any) => ({
-          id: t.id,
-          invoiceNumber: t.invoice_number,
-          bookingId: t.booking_id || undefined,
-          customerName: t.customer_name,
-          customerPhone: t.customer_phone || undefined,
-          barberId: t.barber_id || 'barber-1',
-          barberName: t.barber_name,
-          items: Array.isArray(t.items) ? t.items : [],
-          subtotal: Number(t.subtotal) || 0,
-          discount: Number(t.discount) || 0,
-          totalAmount: Number(t.total_amount) || 0,
-          paymentMethod: t.payment_method || 'cash',
-          amountPaid: Number(t.amount_paid) || 0,
-          changeAmount: Number(t.change_amount) || 0,
-          notes: t.notes || undefined,
-          createdAt: t.created_at,
-        }));
-        return json(formatted);
-      }
-    } catch (err) {
-      console.warn('[Supabase Transactions Error]:', err);
+  try {
+    const remote = await mongoRepo.queryTransactions({
+      date: date || undefined,
+      paymentMethod: paymentMethod && paymentMethod !== 'all' ? paymentMethod : undefined,
+      search: search || undefined,
+    });
+    if (remote.length > 0) {
+      return json(remote);
     }
+  } catch (err) {
+    console.warn('[MongoDB Transactions Error]:', err);
   }
 
   let filtered = serverStore.getTransactions();
@@ -86,6 +54,9 @@ export async function GET(req: Request) {
 
 // POST /api/transactions
 export async function POST(req: Request) {
+  if (!(await requireAdminSession(req))) {
+    return apiError('Anda tidak berwenang. Silakan login sebagai admin.', 401);
+  }
   const body = await readBody(req);
   const {
     bookingId,
@@ -121,7 +92,7 @@ export async function POST(req: Request) {
   const cleanNotes = notes ? sanitizeString(notes) : undefined;
 
   const newTransaction: Transaction = {
-    id: `trx-${Date.now()}`,
+    id: `trx-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
     invoiceNumber,
     bookingId: bookingId ? sanitizeString(bookingId) : undefined,
     customerName: cleanCustomerName,
@@ -139,75 +110,34 @@ export async function POST(req: Request) {
     createdAt: new Date().toISOString(),
   };
 
-  // Try Supabase first, fall back to in-memory
+  // Try MongoDB first, fall back to in-memory
   let persistedToDatabase = false;
-  const supabase = getServerSupabase();
-  if (supabase) {
-    try {
-      // Direct insert with full data (items JSONB, barber_id, etc.)
-      const { data: insData, error: insertError } = await supabase.from('transactions').insert({
-        invoice_number: invoiceNumber,
-        customer_name: cleanCustomerName,
-        customer_phone: cleanCustomerPhone || null,
-        barber_id: barberId && barberId.length > 20 ? barberId : null,
-        barber_name: barberName,
-        items: items || [],
-        subtotal: newTransaction.subtotal,
-        discount: newTransaction.discount,
-        total_amount: newTransaction.totalAmount,
-        payment_method: newTransaction.paymentMethod,
-        payment_status: 'paid',
-        amount_paid: newTransaction.amountPaid,
-        change_amount: newTransaction.changeAmount,
-        notes: cleanNotes || null,
-      }).select().single();
-
-      if (!insertError && insData) {
-        newTransaction.id = insData.id;
-        persistedToDatabase = true;
-      } else {
-        console.error('[Supabase Insert Transaction Error]:', insertError?.message);
-        // Fallback: try RPC
-        try {
-          const { data: rpcData, error: rpcError } = await supabase.rpc('fn_create_pos_transaction', {
-            p_invoice_number: invoiceNumber,
-            p_booking_id: bookingId && bookingId.length > 20 ? bookingId : null,
-            p_customer_name: cleanCustomerName,
-            p_customer_phone: cleanCustomerPhone || null,
-            p_barber_id: barberId && barberId.length > 20 ? barberId : null,
-            p_barber_name: barberName,
-            p_items: items,
-            p_subtotal: newTransaction.subtotal,
-            p_discount: newTransaction.discount,
-            p_total_amount: newTransaction.totalAmount,
-            p_payment_method: newTransaction.paymentMethod,
-            p_amount_paid: newTransaction.amountPaid,
-            p_change_amount: newTransaction.changeAmount,
-            p_notes: cleanNotes || null,
-          });
-          if (!rpcError && rpcData) {
-            newTransaction.id = rpcData.id;
-            newTransaction.invoiceNumber = rpcData.invoice_number || invoiceNumber;
-            persistedToDatabase = true;
-            // Ensure items are saved (RPC may not handle p_items correctly)
-            await supabase.from('transactions').update({ items: items || [] }).eq('id', rpcData.id);
-          }
-        } catch {
-          // RPC also failed, will use in-memory
-        }
-      }
-    } catch (err) {
-      console.error('[Supabase Insert Transaction Error]:', err);
+  try {
+    persistedToDatabase = await mongoRepo.insertTransaction(newTransaction);
+    if (!persistedToDatabase) {
+      console.error('[MongoDB Insert Transaction]: simpan gagal ke database');
     }
+    // Tandai reservasi terkait selesai (completed) di MongoDB agar konsisten
+    // dengan status internal — tidak hanya di memori.
+    if (persistedToDatabase && newTransaction.bookingId) {
+      await mongoRepo
+        .updateBooking(newTransaction.bookingId, { status: 'completed' })
+        .catch(() => {});
+    }
+    // Update customer data (non-blocking)
+    await mongoRepo.upsertCustomer(cleanCustomerName, cleanCustomerPhone, undefined).catch(() => {});
+  } catch (err) {
+    console.error('[MongoDB Insert Transaction Error]:', err);
   }
 
-  // Always store in-memory (persist=false since route already handled Supabase)
+  // Always store in-memory (persist=false since route already handled MongoDB)
   const created = serverStore.addTransaction(newTransaction, false);
   return json(
     {
       success: true,
       transaction: created,
       message: `Transaksi kasir ${newTransaction.invoiceNumber} berhasil disimpan.`,
+      persistedToDatabase,
     },
     201,
   );
