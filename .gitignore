@@ -11,5 +11,5 @@ coverage/
 elegantbarber-android/
 
 .next/
-next-env.d.ts
 .vercel
+*.tsbuildinfo
