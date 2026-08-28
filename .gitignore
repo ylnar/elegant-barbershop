@@ -7,6 +7,9 @@ coverage/
 .env*
 !.env.example
 
+# Aplikasi Android dikelola terpisah — TIDAK boleh masuk ke repo website
+elegantbarber-android/
+
 .next/
 next-env.d.ts
 .vercel
