@@ -1,0 +1,38 @@
+# Built application files
+*.apk
+*.aab
+*.aar
+*.ap_
+*.dex
+
+# Generated files
+bin/
+gen/
+out/
+release/
+app/build/
+build/
+
+# Gradle
+.gradle/
+
+# Local config (sdk.dir, keystore passwords) — do NOT commit
+local.properties
+key.properties
+
+# Signing keys — NEVER commit
+*.keystore
+*.jks
+*.p12
+*.p8
+
+# Logs / OS
+*.log
+.DS_Store
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+captures/
+.externalNativeBuild/
+.cxx/

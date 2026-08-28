@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="gold">#D4AF37</color>
+    <color name="gold_light">#E5C378</color>
+    <color name="gold_dark">#C9A02F</color>
+    <color name="background_dark">#0A0A0E</color>
+    <color name="surface_dark">#14141E</color>
+    <color name="surface_variant">#1A1A26</color>
+    <color name="text_light">#F5F5F7</color>
+    <color name="text_muted">#9CA3AF</color>
+    <color name="success">#10B981</color>
+    <color name="error">#EF4444</color>
+    <color name="warning">#F59E0B</color>
+    <color name="outline">#28283C</color>
+</resources>

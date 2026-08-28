@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Scissors icon in the center, gold color -->
+    <path
+        android:fillColor="#D4AF37"
+        android:pathData="M54,34 C52,30 50,28 46,28 L38,38 C42,40 46,40 50,38 L54,34 Z" />
+    <path
+        android:fillColor="#D4AF37"
+        android:pathData="M54,34 C56,30 58,28 62,28 L70,38 C66,40 62,40 58,38 L54,34 Z" />
+    <path
+        android:fillColor="#D4AF37"
+        android:pathData="M54,34 L40,64 C42,68 48,70 52,64 L54,34 Z" />
+    <path
+        android:fillColor="#D4AF37"
+        android:pathData="M54,34 L68,64 C66,68 60,70 56,64 L54,34 Z" />
+</vector>
