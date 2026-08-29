@@ -410,11 +410,18 @@ export const mongoRepo = {
       }
       if (filters.search) {
         const q = escapeRegExp(filters.search);
-        query.$or = [
-          { customerName: new RegExp(q, 'i') },
-          { customerPhone: new RegExp(q, 'i') },
-          { bookingCode: new RegExp(q, 'i') },
-          { serviceName: new RegExp(q, 'i') },
+        // Gabung kondisi soft-delete ($or dari isDeletedFilter) dengan syarat
+        // pencarian memakai $and — jangan menimpa $or agar data yang sudah
+        // dihapus tidak muncul lagi di hasil pencarian.
+        query.$and = [
+          {
+            $or: [
+              { customerName: new RegExp(q, 'i') },
+              { customerPhone: new RegExp(q, 'i') },
+              { bookingCode: new RegExp(q, 'i') },
+              { serviceName: new RegExp(q, 'i') },
+            ],
+          },
         ];
       }
 
@@ -445,7 +452,7 @@ export const mongoRepo = {
       const rows = await col
         .find({
           ...isDeletedFilter(),
-          $or,
+          $and: [{ $or }],
         })
         .sort({ createdAt: -1, _id: -1 })
         .limit(10)
@@ -516,11 +523,18 @@ export const mongoRepo = {
       }
       if (filters.search) {
         const q = escapeRegExp(filters.search);
-        query.$or = [
-          { invoiceNumber: new RegExp(q, 'i') },
-          { customerName: new RegExp(q, 'i') },
-          { customerPhone: new RegExp(q, 'i') },
-          { barberName: new RegExp(q, 'i') },
+        // Sama dengan queryBookings: jangan timpa $or soft-delete dari
+        // isDeletedFilter — gabung lewat $and agar data terhapus tidak muncul
+        // lagi saat pencarian.
+        query.$and = [
+          {
+            $or: [
+              { invoiceNumber: new RegExp(q, 'i') },
+              { customerName: new RegExp(q, 'i') },
+              { customerPhone: new RegExp(q, 'i') },
+              { barberName: new RegExp(q, 'i') },
+            ],
+          },
         ];
       }
 
