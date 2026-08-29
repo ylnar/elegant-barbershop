@@ -80,18 +80,30 @@ class ServerStore {
     return { ...this.settings };
   }
 
-  toggleBookingSwitch(isOpen?: boolean): { isBookingOpen: boolean; message: string } {
+  /** Simpan settings saat ini ke MongoDB secara awaited — mengembalikan status persist. */
+  async saveSettingsNow(): Promise<boolean> {
+    return mongoRepo.saveSettings(this.settings);
+  }
+
+  async toggleBookingSwitch(
+    isOpen?: boolean,
+  ): Promise<{
+    isBookingOpen: boolean;
+    message: string;
+    persisted: boolean;
+  }> {
     if (typeof isOpen === 'boolean') {
       this.settings.isBookingOpen = isOpen;
     } else {
       this.settings.isBookingOpen = !this.settings.isBookingOpen;
     }
-    void mongoRepo.saveSettings(this.settings);
+    const persisted = await mongoRepo.saveSettings(this.settings);
     return {
       isBookingOpen: this.settings.isBookingOpen,
       message: this.settings.isBookingOpen
         ? 'Sistem Booking Online DIBUKA. Pelanggan dapat reservasi.'
         : 'Sistem Booking Online DITUTUP. Form di halaman depan kini menampilkan mode Walk-In Only.',
+      persisted,
     };
   }
 

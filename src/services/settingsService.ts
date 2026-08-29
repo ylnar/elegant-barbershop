@@ -39,34 +39,28 @@ export const settingsService = {
   },
 
   async toggleBookingSwitch(isOpen?: boolean): Promise<{ isBookingOpen: boolean; message: string }> {
-    try {
-      // First read current state
-      const current = await dbGetSettings();
-      const currentState = current?.isBookingOpen ?? true;
-      const newState = typeof isOpen === 'boolean' ? isOpen : !currentState;
-
-      const updated = await dbUpdateSettings({ isBookingOpen: newState });
-      const isOpenFinal = updated?.isBookingOpen ?? newState;
-      const message = isOpenFinal
-        ? 'Sistem Booking Online DIBUKA'
-        : 'Sistem Booking Online DITUTUP (Walk-In Only)';
-
-      // Sync local
-      const localSettings = getLocal<SystemSettings>(STORAGE_KEYS.SETTINGS, INITIAL_SETTINGS);
-      localSettings.isBookingOpen = isOpenFinal;
-      setLocal(STORAGE_KEYS.SETTINGS, localSettings);
-
-      return { isBookingOpen: isOpenFinal, message };
-    } catch (e) {
-      console.error('[DB Toggle Booking]:', e);
-
-      const cur = getLocal<SystemSettings>(STORAGE_KEYS.SETTINGS, INITIAL_SETTINGS);
-      cur.isBookingOpen = typeof isOpen === 'boolean' ? isOpen : !cur.isBookingOpen;
-      setLocal(STORAGE_KEYS.SETTINGS, cur);
-      return {
-        isBookingOpen: cur.isBookingOpen,
-        message: cur.isBookingOpen ? 'Sistem Booking Online DIBUKA' : 'Sistem Booking Online DITUTUP (Walk-In Only)',
-      };
+    // Pakai endpoint dedicated agar perubahan disimpan (awaited) ke MongoDB
+    // dan kegagalan persist tampil sebagai error — bukan hasil sukses palsu.
+    const res = await fetch('/api/settings/toggle-booking', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ isOpen: isOpen ?? null }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data?.success) {
+      const msg: string =
+        data?.error || (data?.message as string) || `Gagal mengubah status booking (HTTP ${res.status})`;
+      throw new Error(msg);
     }
+
+    const isOpenFinal: boolean = data.isBookingOpen;
+    const message: string = data.message;
+
+    // Sync local
+    const localSettings = getLocal<SystemSettings>(STORAGE_KEYS.SETTINGS, INITIAL_SETTINGS);
+    localSettings.isBookingOpen = isOpenFinal;
+    setLocal(STORAGE_KEYS.SETTINGS, localSettings);
+
+    return { isBookingOpen: isOpenFinal, message };
   },
 };

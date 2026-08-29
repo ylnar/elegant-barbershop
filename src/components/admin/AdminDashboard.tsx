@@ -113,8 +113,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       setSwitchFeedback(result.message);
       await onRefreshData();
       setTimeout(() => setSwitchFeedback(null), 4000);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error toggling master switch:', err);
+      toast.error(
+        err?.message ||
+          'Gagal mengubah status booking. Periksa koneksi ke server/database lalu coba lagi.',
+      );
     }
   };
 

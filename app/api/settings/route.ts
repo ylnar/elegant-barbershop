@@ -22,7 +22,15 @@ export async function PUT(req: Request) {
   if (updates.phone) updates.phone = sanitizeString(updates.phone);
   if (updates.whatsappNumber) updates.whatsappNumber = sanitizeString(updates.whatsappNumber);
 
-  const newSettings = serverStore.updateSettings(updates);
+  const newSettings = serverStore.updateSettings(updates, false);
+  const persisted = await serverStore.saveSettingsNow();
+  if (!persisted) {
+    return apiError(
+      'Gagal menyimpan pengaturan ke MongoDB. Periksa koneksi database lalu coba lagi.',
+      500,
+      { settings: newSettings },
+    );
+  }
   return json({
     success: true,
     settings: newSettings,

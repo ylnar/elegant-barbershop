@@ -11,7 +11,16 @@ export async function POST(req: Request) {
     return apiError('Anda tidak berwenang. Silakan login sebagai admin.', 401);
   }
   const { isOpen } = await readBody(req);
-  const result = serverStore.toggleBookingSwitch(typeof isOpen === 'boolean' ? isOpen : undefined);
+  const result = await serverStore.toggleBookingSwitch(
+    typeof isOpen === 'boolean' ? isOpen : undefined,
+  );
+  if (!result.persisted) {
+    return apiError(
+      'Gagal menyimpan perubahan ke MongoDB. Periksa koneksi database lalu coba lagi.',
+      500,
+      { isBookingOpen: result.isBookingOpen },
+    );
+  }
   return json({
     success: true,
     isBookingOpen: result.isBookingOpen,
