@@ -28,6 +28,27 @@ let resolvedSrvUri: string | null = null;
 let lastFailAt = 0;
 const FAIL_WINDOW_MS = 20_000;
 
+// Health-check: koneksi pooled dapat mati diam-diam setelah itu (serverless /
+// instance tidur / idle pool). Bila runtime sudah lama tidak terpakai, ping dulu
+// sebelum dipakai; bila mati, koneksi dibangun ulang secara transparan.
+let lastGoodAt = 0;
+const IDLE_RECHECK_MS = 20_000;
+const PING_TIMEOUT_MS = 2500;
+
+async function pingRuntime(r: MongoRuntime): Promise<boolean> {
+  try {
+    await Promise.race([
+      r.db.command({ ping: 1 }),
+      new Promise<never>((_, rej) =>
+        setTimeout(() => rej(new Error('MongoDB ping timeout')), PING_TIMEOUT_MS),
+      ),
+    ]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // Beberapa ISP/router menolak query DNS dari aplikasi (bukan dari Windows DNS
 // Client). Akibatnya `mongodb+srv://...` gagal dengan ECONNREFUSED padahal
 // server Atlas normal. Solusi: probe resolver default sekali, lalu fallback ke
@@ -168,6 +189,25 @@ export const getMongoRuntime = async (): Promise<MongoRuntime | null> => {
 
   const dnsOk = await ensureUsableDns(uri);
 
+  // Health-check: bila koneksi cached sudah lama tidak dipakai, pastikan client
+  // masih terhubung. Serverless sering menidurkan idle socket; tanpa cek ini
+  // operasi pertama setelah idle bisa gagal (persisted=false) lalu sukses lagi.
+  if (runtime && lastUri === uri && lastDbName === dbName) {
+    if (Date.now() - lastGoodAt > IDLE_RECHECK_MS) {
+      const alive = await pingRuntime(runtime);
+      if (alive) {
+        lastGoodAt = Date.now();
+      } else {
+        console.warn('[MongoDB] Koneksi idle sudah tidak hidup — membangun ulang.');
+        runtime = null;
+        resolvedSrvUri = resolvedSrvUri && resolvedSrvUri.startsWith('mongodb://') ? resolvedSrvUri : null;
+        lastUri = '';
+        lastDbName = '';
+        lastFailAt = 0;
+      }
+    }
+  }
+
   if (!runtime || lastUri !== uri || lastDbName !== dbName) {
     // Untuk `mongodb+srv://`, resolver c-ares in-process dapat ditolak router
     // (di proses Next.js selalu gagal walau setServers dipanggil — shim webpack).
@@ -197,6 +237,7 @@ export const getMongoRuntime = async (): Promise<MongoRuntime | null> => {
       lastUri = uri;
       lastDbName = dbName;
       lastFailAt = 0;
+      lastGoodAt = Date.now();
       console.log(`✅ [MongoDB] Terhubung ke ${maskUri(uri)} (db: ${dbName})`);
     } else {
       console.warn(
@@ -208,7 +249,37 @@ export const getMongoRuntime = async (): Promise<MongoRuntime | null> => {
     }
   }
 
+  lastGoodAt = Date.now();
   return runtime;
+};
+
+let reconnectInFlight: Promise<MongoRuntime | null> | null = null;
+
+/**
+ * Bangun ulang koneksi MongoDB dari nol (dipakai untuk retry operasi yang gagal
+ * karena koneksi sempat mati / token jaringan sementara). Menonaktifkan
+ * circuit-breaker lama lalu membuka client baru. Dipakai bersama di mongoRepo
+ * agar tulis yang gagal karena transisi cold-start/serverless tidak hilang.
+ */
+export const reconnectMongoRuntime = (): Promise<MongoRuntime | null> => {
+  if (reconnectInFlight) return reconnectInFlight;
+  reconnectInFlight = (async () => {
+    const old = runtime;
+    runtime = null;
+    resolvedSrvUri = resolvedSrvUri && resolvedSrvUri.startsWith('mongodb://') ? resolvedSrvUri : null;
+    lastUri = '';
+    lastDbName = '';
+    lastFailAt = 0;
+    if (old) {
+      await old.client.close().catch(() => {});
+    }
+    try {
+      return await getMongoRuntime();
+    } finally {
+      reconnectInFlight = null;
+    }
+  })();
+  return reconnectInFlight;
 };
 
 /** Ambil Database object */

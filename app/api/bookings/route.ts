@@ -235,7 +235,9 @@ export async function POST(req: Request) {
     updatedAt: nowIso,
   };
 
-  // Try MongoDB first, fall back to in-memory
+  // Simpan ke MongoDB — kalau gagal, JANGAN klaim sukses (data in-memory serverless
+  // hilang saat instance di-recycle). Beri 503 agar pemesan tahu perlu mencoba lagi
+  // dan tidak terjadi duplikat saat pengulangan.
   let persistedToDatabase = false;
   try {
     persistedToDatabase = await mongoRepo.insertBooking(newBooking);
@@ -243,12 +245,27 @@ export async function POST(req: Request) {
       console.error('[MongoDB Insert Booking] Gagal simpan ke database');
     }
     // Upsert customer to prevent duplicates (non-blocking)
-    await mongoRepo.upsertCustomer(customerName, customerPhone, customerEmail).catch(() => {});
+    if (persistedToDatabase) {
+      await mongoRepo.upsertCustomer(customerName, customerPhone, customerEmail).catch(() => {});
+    }
   } catch (err) {
     console.error('[MongoDB Insert Booking] Gagal:', err);
   }
 
-  // Always store in-memory (persist=false since route already handled MongoDB)
+  if (!persistedToDatabase) {
+    return json(
+      {
+        success: false,
+        error: 'Reservasi belum tersimpan. Gangguan sementara pada database, silakan coba lagi dalam beberapa saat.',
+        message: settings.maintenanceMessage && !isManualWalkIn && !isAdminEntry
+          ? settings.maintenanceMessage
+          : 'Gangguan sementara, silakan coba lagi.',
+      },
+      503,
+    );
+  }
+
+  // Store in-memory hanya setelah benar-benar tersimpan di MongoDB
   const created = serverStore.addBooking(newBooking, false);
   return json(
     {

@@ -1,7 +1,12 @@
-import { WithId, Document } from 'mongodb';
+import { WithId, Collection, Document } from 'mongodb';
 import { Booking, BookingStatus, Service, Barber, SystemSettings, Transaction } from '../src/types';
 import { INITIAL_SETTINGS } from '../src/data/initialData';
-import { COLLECTIONS, ensureMongoIndexes, getMongoCollection } from './mongodb';
+import {
+  COLLECTIONS,
+  ensureMongoIndexes,
+  getMongoCollection,
+  reconnectMongoRuntime,
+} from './mongodb';
 import { ensureDefaultAdmin } from './adminAuth';
 
 /**
@@ -22,6 +27,40 @@ import { ensureDefaultAdmin } from './adminAuth';
 
 function isDeletedFilter(): Document {
   return { $or: [{ isDeleted: { $ne: true } }, { isDeleted: { $exists: false } }] };
+}
+
+/**
+ * Jalankan operasi Mongo dengan auto-retry: bila koleksi tak tersedia atau operasi
+ * melempar error transien (koneksi mati idle, cold-start serverless, dll.), koneksi
+ * dibangun ulang lalu percobaan dijalankan sekali lagi. Ini mencegah data hilang
+ * diam-diam pada percobaan pertama setelah instance/connection baru.
+ */
+async function runWithMongo<T>(
+  name: string,
+  fn: (col: Collection<Document>) => Promise<T>,
+  fallback: T,
+): Promise<T> {
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    const col = await getMongoCollection(name);
+    if (col) {
+      try {
+        return await fn(col);
+      } catch (err: unknown) {
+        if (attempt < 2) {
+          console.warn(`[MongoDB] Operasi "${name}" gagal, coba ulang dengan koneksi baru.`, err);
+          await reconnectMongoRuntime();
+          continue;
+        }
+        return fallback;
+      }
+    }
+    if (attempt < 2) {
+      await reconnectMongoRuntime();
+      continue;
+    }
+    return fallback;
+  }
+  return fallback;
 }
 
 function toIso(d: string | Date | undefined, fallback?: string): string {
@@ -166,66 +205,65 @@ export const mongoRepo = {
   },
 
   async saveSettings(settings: SystemSettings): Promise<boolean> {
-    try {
-      const col = await getMongoCollection(COLLECTIONS.SETTINGS);
-      if (!col) return false;
-      const { _id: _omit, ...payload } = { ...(settings as unknown as Document) };
-      await col.updateOne(
-        { key: 'default_settings' },
-        {
-          $set: { ...payload, updatedAt: new Date().toISOString() },
-          $setOnInsert: { key: 'default_settings', createdAt: new Date().toISOString() },
-        },
-        { upsert: true },
-      );
-      return true;
-    } catch {
-      return false;
-    }
+    return runWithMongo(
+      COLLECTIONS.SETTINGS,
+      async (col) => {
+        const { _id: _omit, ...payload } = { ...(settings as unknown as Document) };
+        await col.updateOne(
+          { key: 'default_settings' },
+          {
+            $set: { ...payload, updatedAt: new Date().toISOString() },
+            $setOnInsert: { key: 'default_settings', createdAt: new Date().toISOString() },
+          },
+          { upsert: true },
+        );
+        return true;
+      },
+      false,
+    );
   },
 
   // ── Services ───────────────────────────────────────────────────────────────
 
   async fetchServices(): Promise<Service[] | null> {
-    try {
-      const col = await getMongoCollection(COLLECTIONS.SERVICES);
-      if (!col) return null;
-      const rows = await col.find(isDeletedFilter()).sort({ createdAt: -1 }).toArray();
-      if (rows.length === 0) return null;
-      return rows.map(mapServiceRow);
-    } catch {
-      return null;
-    }
+    return runWithMongo(
+      COLLECTIONS.SERVICES,
+      async (col) => {
+        const rows = await col.find(isDeletedFilter()).sort({ createdAt: -1 }).toArray();
+        return rows.length === 0 ? null : rows.map(mapServiceRow);
+      },
+      null,
+    );
   },
 
   async insertService(service: Service): Promise<boolean> {
-    try {
-      const col = await getMongoCollection(COLLECTIONS.SERVICES);
-      if (!col) return false;
-      await col.insertOne({
-        ...service,
-        isDeleted: false,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      });
-      return true;
-    } catch {
-      return false;
-    }
+    return runWithMongo(
+      COLLECTIONS.SERVICES,
+      async (col) => {
+        const res = await col.insertOne({
+          ...service,
+          isDeleted: false,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+        return res.acknowledged;
+      },
+      false,
+    );
   },
 
   async updateService(id: string, updates: Partial<Service>): Promise<boolean> {
-    try {
-      const col = await getMongoCollection(COLLECTIONS.SERVICES);
-      if (!col) return false;
-      const result = await col.updateMany(
-        { id },
-        { $set: { ...updates, updatedAt: new Date().toISOString() } },
-      );
-      return result.matchedCount > 0;
-    } catch {
-      return false;
-    }
+    return runWithMongo(
+      COLLECTIONS.SERVICES,
+      async (col) => {
+        const result = await col.updateMany(
+          { id },
+          { $set: { ...updates, updatedAt: new Date().toISOString() } },
+        );
+        return result.matchedCount > 0;
+      },
+      false,
+    );
   },
 
   async deleteService(id: string): Promise<boolean> {
@@ -259,45 +297,44 @@ export const mongoRepo = {
   // ── Barbers ────────────────────────────────────────────────────────────────
 
   async fetchBarbers(): Promise<Barber[] | null> {
-    try {
-      const col = await getMongoCollection(COLLECTIONS.BARBERS);
-      if (!col) return null;
-      const rows = await col.find(isDeletedFilter()).sort({ createdAt: -1 }).toArray();
-      if (rows.length === 0) return null;
-      return rows.map(mapBarberRow);
-    } catch {
-      return null;
-    }
+    return runWithMongo(
+      COLLECTIONS.BARBERS,
+      async (col) => {
+        const rows = await col.find(isDeletedFilter()).sort({ createdAt: -1 }).toArray();
+        return rows.length === 0 ? null : rows.map(mapBarberRow);
+      },
+      null,
+    );
   },
 
   async insertBarber(barber: Barber): Promise<boolean> {
-    try {
-      const col = await getMongoCollection(COLLECTIONS.BARBERS);
-      if (!col) return false;
-      await col.insertOne({
-        ...barber,
-        isDeleted: false,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      });
-      return true;
-    } catch {
-      return false;
-    }
+    return runWithMongo(
+      COLLECTIONS.BARBERS,
+      async (col) => {
+        const res = await col.insertOne({
+          ...barber,
+          isDeleted: false,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+        return res.acknowledged;
+      },
+      false,
+    );
   },
 
   async updateBarber(id: string, updates: Partial<Barber>): Promise<boolean> {
-    try {
-      const col = await getMongoCollection(COLLECTIONS.BARBERS);
-      if (!col) return false;
-      const result = await col.updateMany(
-        { id },
-        { $set: { ...updates, updatedAt: new Date().toISOString() } },
-      );
-      return result.matchedCount > 0;
-    } catch {
-      return false;
-    }
+    return runWithMongo(
+      COLLECTIONS.BARBERS,
+      async (col) => {
+        const result = await col.updateMany(
+          { id },
+          { $set: { ...updates, updatedAt: new Date().toISOString() } },
+        );
+        return result.matchedCount > 0;
+      },
+      false,
+    );
   },
 
   async deleteBarber(id: string): Promise<boolean> {
@@ -331,45 +368,44 @@ export const mongoRepo = {
   // ── Bookings ───────────────────────────────────────────────────────────────
 
   async fetchBookings(): Promise<Booking[] | null> {
-    try {
-      const col = await getMongoCollection(COLLECTIONS.BOOKINGS);
-      if (!col) return null;
-      const rows = await col.find(isDeletedFilter()).sort({ createdAt: -1, _id: -1 }).toArray();
-      if (rows.length === 0) return null;
-      return rows.map(mapBookingRow);
-    } catch {
-      return null;
-    }
+    return runWithMongo(
+      COLLECTIONS.BOOKINGS,
+      async (col) => {
+        const rows = await col.find(isDeletedFilter()).sort({ createdAt: -1, _id: -1 }).toArray();
+        return rows.length === 0 ? null : rows.map(mapBookingRow);
+      },
+      null,
+    );
   },
 
   async insertBooking(booking: Booking): Promise<boolean> {
-    try {
-      const col = await getMongoCollection(COLLECTIONS.BOOKINGS);
-      if (!col) return false;
-      await col.insertOne({
-        ...booking,
-        isDeleted: false,
-        createdAt: booking.createdAt || new Date().toISOString(),
-        updatedAt: booking.updatedAt || booking.createdAt || new Date().toISOString(),
-      });
-      return true;
-    } catch {
-      return false;
-    }
+    return runWithMongo(
+      COLLECTIONS.BOOKINGS,
+      async (col) => {
+        const res = await col.insertOne({
+          ...booking,
+          isDeleted: false,
+          createdAt: booking.createdAt || new Date().toISOString(),
+          updatedAt: booking.updatedAt || booking.createdAt || new Date().toISOString(),
+        });
+        return res.acknowledged;
+      },
+      false,
+    );
   },
 
   async updateBooking(identifier: string, updates: Partial<Booking>): Promise<boolean> {
-    try {
-      const col = await getMongoCollection(COLLECTIONS.BOOKINGS);
-      if (!col) return false;
-      const result = await col.updateMany(
-        { $or: [{ id: identifier }, { bookingCode: identifier }] },
-        { $set: { ...updates, updatedAt: new Date().toISOString() } },
-      );
-      return result.matchedCount > 0;
-    } catch {
-      return false;
-    }
+    return runWithMongo(
+      COLLECTIONS.BOOKINGS,
+      async (col) => {
+        const result = await col.updateMany(
+          { $or: [{ id: identifier }, { bookingCode: identifier }] },
+          { $set: { ...updates, updatedAt: new Date().toISOString() } },
+        );
+        return result.matchedCount > 0;
+      },
+      false,
+    );
   },
 
   async deleteBooking(identifier: string): Promise<boolean> {
@@ -394,46 +430,45 @@ export const mongoRepo = {
     search?: string;
     limit?: number;
   }): Promise<Booking[]> {
-    try {
-      const col = await getMongoCollection(COLLECTIONS.BOOKINGS);
-      if (!col) return [];
+    return runWithMongo(
+      COLLECTIONS.BOOKINGS,
+      async (col) => {
+        const query: Document = { ...isDeletedFilter() };
+        if (filters.code) query.bookingCode = new RegExp(`^${escapeRegExp(filters.code)}$`, 'i');
+        if (filters.date) query.date = filters.date;
+        if (filters.status && filters.status !== 'all') {
+          // Pseudo-status 'active' dipakai API untuk mengambil reservasi aktif saja
+          query.status =
+            filters.status === 'active'
+              ? { $in: ['pending', 'confirmed', 'in_service'] }
+              : filters.status;
+        }
+        if (filters.search) {
+          const q = escapeRegExp(filters.search);
+          // Gabung kondisi soft-delete ($or dari isDeletedFilter) dengan syarat
+          // pencarian memakai $and — jangan menimpa $or agar data yang sudah
+          // dihapus tidak muncul lagi di hasil pencarian.
+          query.$and = [
+            {
+              $or: [
+                { customerName: new RegExp(q, 'i') },
+                { customerPhone: new RegExp(q, 'i') },
+                { bookingCode: new RegExp(q, 'i') },
+                { serviceName: new RegExp(q, 'i') },
+              ],
+            },
+          ];
+        }
 
-      const query: Document = { ...isDeletedFilter() };
-      if (filters.code) query.bookingCode = new RegExp(`^${escapeRegExp(filters.code)}$`, 'i');
-      if (filters.date) query.date = filters.date;
-      if (filters.status && filters.status !== 'all') {
-        // Pseudo-status 'active' dipakai API untuk mengambil reservasi aktif saja
-        query.status =
-          filters.status === 'active'
-            ? { $in: ['pending', 'confirmed', 'in_service'] }
-            : filters.status;
-      }
-      if (filters.search) {
-        const q = escapeRegExp(filters.search);
-        // Gabung kondisi soft-delete ($or dari isDeletedFilter) dengan syarat
-        // pencarian memakai $and — jangan menimpa $or agar data yang sudah
-        // dihapus tidak muncul lagi di hasil pencarian.
-        query.$and = [
-          {
-            $or: [
-              { customerName: new RegExp(q, 'i') },
-              { customerPhone: new RegExp(q, 'i') },
-              { bookingCode: new RegExp(q, 'i') },
-              { serviceName: new RegExp(q, 'i') },
-            ],
-          },
-        ];
-      }
-
-      const rows = await col
-        .find(query)
-        .sort({ createdAt: -1, _id: -1 })
-        .limit(filters.limit ?? 0)
-        .toArray();
-      return rows.map(mapBookingRow);
-    } catch {
-      return [];
-    }
+        const rows = await col
+          .find(query)
+          .sort({ createdAt: -1, _id: -1 })
+          .limit(filters.limit ?? 0)
+          .toArray();
+        return rows.map(mapBookingRow);
+      },
+      [],
+    );
   },
 
   /** Lacak reservasi via kode tiket atau nomor handphone */
@@ -469,20 +504,26 @@ export const mongoRepo = {
     todayStr: string,
   ): Promise<{ code: string; date: string } | null> {
     try {
-      const col = await getMongoCollection(COLLECTIONS.BOOKINGS);
-      if (!col) return null;
-      const normalized = normalizePhone(phone);
-      const rows = await col
-        .find({
-          ...isDeletedFilter(),
-          status: { $in: ['pending', 'confirmed', 'in_service'] },
-          date: { $gte: todayStr },
-        })
-        .sort({ createdAt: -1, _id: -1 })
-        .limit(200)
-        .toArray();
-      const found = rows.find((b) => normalizePhone(b.customerPhone) === normalized);
-      return found ? { code: String(found.bookingCode || ''), date: String(found.date || '') } : null;
+      return await runWithMongo(
+        COLLECTIONS.BOOKINGS,
+        async (col) => {
+          const normalized = normalizePhone(phone);
+          const rows = await col
+            .find({
+              ...isDeletedFilter(),
+              status: { $in: ['pending', 'confirmed', 'in_service'] },
+              date: { $gte: todayStr },
+            })
+            .sort({ createdAt: -1, _id: -1 })
+            .limit(200)
+            .toArray();
+          const found = rows.find((b) => normalizePhone(b.customerPhone) === normalized);
+          return found
+            ? { code: String(found.bookingCode || ''), date: String(found.date || '') }
+            : null;
+        },
+        null,
+      );
     } catch {
       return null;
     }
@@ -491,15 +532,14 @@ export const mongoRepo = {
   // ── Transactions ───────────────────────────────────────────────────────────
 
   async fetchTransactions(): Promise<Transaction[] | null> {
-    try {
-      const col = await getMongoCollection(COLLECTIONS.TRANSACTIONS);
-      if (!col) return null;
-      const rows = await col.find(isDeletedFilter()).sort({ createdAt: -1, _id: -1 }).toArray();
-      if (rows.length === 0) return null;
-      return rows.map(mapTransactionRow);
-    } catch {
-      return null;
-    }
+    return runWithMongo(
+      COLLECTIONS.TRANSACTIONS,
+      async (col) => {
+        const rows = await col.find(isDeletedFilter()).sort({ createdAt: -1, _id: -1 }).toArray();
+        return rows.length === 0 ? null : rows.map(mapTransactionRow);
+      },
+      null,
+    );
   },
 
   async queryTransactions(filters: {
@@ -508,61 +548,60 @@ export const mongoRepo = {
     search?: string;
     limit?: number;
   }): Promise<Transaction[]> {
-    try {
-      const col = await getMongoCollection(COLLECTIONS.TRANSACTIONS);
-      if (!col) return [];
+    return runWithMongo(
+      COLLECTIONS.TRANSACTIONS,
+      async (col) => {
+        const query: Document = { ...isDeletedFilter() };
+        if (filters.date) {
+          const startUTC = new Date(`${filters.date}T00:00:00+07:00`).toISOString();
+          const endUTC = new Date(`${filters.date}T23:59:59+07:00`).toISOString();
+          query.createdAt = { $gte: startUTC, $lte: endUTC };
+        }
+        if (filters.paymentMethod && filters.paymentMethod !== 'all') {
+          query.paymentMethod = filters.paymentMethod;
+        }
+        if (filters.search) {
+          const q = escapeRegExp(filters.search);
+          // Sama dengan queryBookings: jangan timpa $or soft-delete dari
+          // isDeletedFilter — gabung lewat $and agar data terhapus tidak muncul
+          // lagi saat pencarian.
+          query.$and = [
+            {
+              $or: [
+                { invoiceNumber: new RegExp(q, 'i') },
+                { customerName: new RegExp(q, 'i') },
+                { customerPhone: new RegExp(q, 'i') },
+                { barberName: new RegExp(q, 'i') },
+              ],
+            },
+          ];
+        }
 
-      const query: Document = { ...isDeletedFilter() };
-      if (filters.date) {
-        const startUTC = new Date(`${filters.date}T00:00:00+07:00`).toISOString();
-        const endUTC = new Date(`${filters.date}T23:59:59+07:00`).toISOString();
-        query.createdAt = { $gte: startUTC, $lte: endUTC };
-      }
-      if (filters.paymentMethod && filters.paymentMethod !== 'all') {
-        query.paymentMethod = filters.paymentMethod;
-      }
-      if (filters.search) {
-        const q = escapeRegExp(filters.search);
-        // Sama dengan queryBookings: jangan timpa $or soft-delete dari
-        // isDeletedFilter — gabung lewat $and agar data terhapus tidak muncul
-        // lagi saat pencarian.
-        query.$and = [
-          {
-            $or: [
-              { invoiceNumber: new RegExp(q, 'i') },
-              { customerName: new RegExp(q, 'i') },
-              { customerPhone: new RegExp(q, 'i') },
-              { barberName: new RegExp(q, 'i') },
-            ],
-          },
-        ];
-      }
-
-      const rows = await col
-        .find(query)
-        .sort({ createdAt: -1, _id: -1 })
-        .limit(filters.limit ?? 0)
-        .toArray();
-      return rows.map(mapTransactionRow);
-    } catch {
-      return [];
-    }
+        const rows = await col
+          .find(query)
+          .sort({ createdAt: -1, _id: -1 })
+          .limit(filters.limit ?? 0)
+          .toArray();
+        return rows.map(mapTransactionRow);
+      },
+      [],
+    );
   },
 
   async insertTransaction(trx: Transaction): Promise<boolean> {
-    try {
-      const col = await getMongoCollection(COLLECTIONS.TRANSACTIONS);
-      if (!col) return false;
-      await col.insertOne({
-        ...trx,
-        isDeleted: false,
-        createdAt: trx.createdAt || new Date().toISOString(),
-        updatedAt: trx.createdAt || new Date().toISOString(),
-      });
-      return true;
-    } catch {
-      return false;
-    }
+    return runWithMongo(
+      COLLECTIONS.TRANSACTIONS,
+      async (col) => {
+        const res = await col.insertOne({
+          ...trx,
+          isDeleted: false,
+          createdAt: trx.createdAt || new Date().toISOString(),
+          updatedAt: trx.createdAt || new Date().toISOString(),
+        });
+        return res.acknowledged;
+      },
+      false,
+    );
   },
 
   async deleteTransaction(id: string): Promise<boolean> {

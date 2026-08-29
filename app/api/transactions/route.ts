@@ -110,7 +110,10 @@ export async function POST(req: Request) {
     createdAt: new Date().toISOString(),
   };
 
-  // Try MongoDB first, fall back to in-memory
+  // Simpan ke MongoDB — kalau gagal, JANGAN klaim sukses. Di serverless data
+  // hanya di memori instance → hilang saat instance di-recycle, dan aplikasi
+  // HP percaya data sudah tersimpan. Lebih baik beri error agar klien
+  // menyimpan ke antrean offline/retry.
   let persistedToDatabase = false;
   try {
     persistedToDatabase = await mongoRepo.insertTransaction(newTransaction);
@@ -125,12 +128,22 @@ export async function POST(req: Request) {
         .catch(() => {});
     }
     // Update customer data (non-blocking)
-    await mongoRepo.upsertCustomer(cleanCustomerName, cleanCustomerPhone, undefined).catch(() => {});
+    if (persistedToDatabase) {
+      await mongoRepo.upsertCustomer(cleanCustomerName, cleanCustomerPhone, undefined).catch(() => {});
+    }
   } catch (err) {
     console.error('[MongoDB Insert Transaction Error]:', err);
   }
 
-  // Always store in-memory (persist=false since route already handled MongoDB)
+  if (!persistedToDatabase) {
+    return apiError(
+      'Transaksi belum tersimpan ke database. Silakan coba lagi; data sementara juga tersimpan di antrean aplikasi.',
+      500,
+      { success: false, persistedToDatabase: false },
+    );
+  }
+
+  // Store in-memory hanya setelah benar-benar tersimpan di MongoDB
   const created = serverStore.addTransaction(newTransaction, false);
   return json(
     {
