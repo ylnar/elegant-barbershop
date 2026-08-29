@@ -15,7 +15,11 @@ export interface JwtPayload extends JWTPayload {
   displayName: string;
 }
 
-const JWT_EXPIRY = '24h';
+const JWT_EXPIRY = '365d';
+
+/** Masa tenggang (detik) untuk refresh: token tetap bisa ditukar dengan yang baru
+ *  walau sudah kedaluwarsa, selama masih dalam 30 hari. */
+const JWT_GRACE_SECONDS = 30 * 24 * 60 * 60;
 
 function getSecret(): Uint8Array {
   const secret = serverConfig.jwtSecret;
@@ -40,6 +44,23 @@ export async function verifyJwt(token: string): Promise<JwtPayload | null> {
   try {
     const { payload } = await jwtVerify(token, getSecret(), {
       issuer: 'elegant-barbershop',
+    });
+    return payload as JwtPayload;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Verifikasi JWT dengan masa tenggang kedaluwarsa.
+ * Dipakai endpoint /api/auth/refresh agar app Android bisa menukar token yang
+ * barusan kedaluwarsa (< 30 hari) dengan token baru — tanpa meminta password lagi.
+ */
+export async function verifyJwtAllowExpired(token: string): Promise<JwtPayload | null> {
+  try {
+    const { payload } = await jwtVerify(token, getSecret(), {
+      issuer: 'elegant-barbershop',
+      clockTolerance: JWT_GRACE_SECONDS,
     });
     return payload as JwtPayload;
   } catch {

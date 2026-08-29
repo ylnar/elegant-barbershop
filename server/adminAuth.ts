@@ -124,6 +124,19 @@ export async function authenticateAdmin(
   }
 }
 
+/** Ambil admin berdasarkan id (harus masih aktif). Dipakai untuk refresh token mobile. */
+export async function getAdminById(id: string): Promise<AdminUser | null> {
+  try {
+    const col = await adminsCol();
+    if (!col || !id) return null;
+    const row = await col.findOne({ id });
+    if (!row || row.isActive === false) return null;
+    return toAdminUser(row);
+  } catch {
+    return null;
+  }
+}
+
 // ── Sesi ─────────────────────────────────────────────────────────────────────
 
 async function sessionsCol() {
