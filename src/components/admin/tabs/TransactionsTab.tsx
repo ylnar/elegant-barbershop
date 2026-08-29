@@ -106,9 +106,7 @@ export const TransactionsTab: React.FC<TransactionsTabProps> = ({
   const handleTransactionCreated = async (newTx: Transaction) => {
     setTransactionModalOpen(false);
     await onRefreshData();
-    setSuccessBanner(`Transaksi berhasil disimpan! No. Invoice: ${newTx.invoiceNumber}`);
-    toast.success(`Transaksi ${newTx.invoiceNumber} berhasil!`);
-    setTimeout(() => setSuccessBanner(null), 5000);
+    toast.success(`Transaksi ${newTx.invoiceNumber} berhasil disimpan.`);
   };
 
   const handleViewDetail = (tx: Transaction) => {

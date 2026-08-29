@@ -178,13 +178,7 @@ export const ReportsTab: React.FC<ReportsTabProps> = ({ bookings, services, tran
         </div>
 
         <button
-          onClick={() => {
-            if (transactions.length === 0 && bookings.length === 0) {
-              toast.error('Tidak ada data laporan untuk diekspor.');
-              return;
-            }
-            setExportConfirmOpen(true);
-          }}
+          onClick={() => setExportConfirmOpen(true)}
           className="px-5 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs uppercase tracking-wider shadow-xl shadow-emerald-600/20 flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-95 shrink-0"
         >
           <Download className="w-4 h-4" />

@@ -1,7 +1,6 @@
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import { WithId, Document } from 'mongodb';
 import { COLLECTIONS, getMongoCollection } from './mongodb';
-import { verifyJwt, type JwtPayload } from './jwt';
 
 /**
  * server/adminAuth.ts
@@ -218,6 +217,51 @@ export function sessionCookieOptions(expiresAt: Date, secure: boolean) {
   };
 }
 
+/**
+ * Perpanjang sesi yang masih valid di MongoDB.
+ * Mengembalikan token baru (dibuat ulang) + expiry baru + user info.
+ * Dipakai oleh endpoint /api/auth/refresh agar Android app tidak perlu login ulang.
+ */
+export async function refreshAdminSession(
+  token: string,
+): Promise<{ token: string; expiresAt: Date; user: AdminUser } | null> {
+  try {
+    const col = await sessionsCol();
+    if (!col || !token) return null;
+
+    // Cari sesi yang masih aktif (belum expired)
+    const row = await col.findOne({ token, expiresAt: { $gt: new Date() } });
+    if (!row) return null;
+
+    const user: AdminUser = {
+      id: String(row.adminId || ''),
+      username: String(row.username || ''),
+      displayName: String(row.displayName || row.username || 'Owner'),
+      role: String(row.role || 'owner'),
+    };
+
+    // Buat sesi baru (token baru, expiry baru)
+    const newToken = randomBytes(32).toString('hex');
+    const newExpiresAt = new Date(Date.now() + SESSION_TTL_MS);
+
+    // Hapus sesi lama, sisipkan yang baru
+    await col.deleteMany({ token });
+    await col.insertOne({
+      token: newToken,
+      adminId: user.id,
+      username: user.username,
+      displayName: user.displayName,
+      role: user.role,
+      createdAt: new Date().toISOString(),
+      expiresAt: newExpiresAt,
+    });
+
+    return { token: newToken, expiresAt: newExpiresAt, user };
+  } catch {
+    return null;
+  }
+}
+
 /** Ambil token sesi dari header Cookie (objek Request generik). */
 function getSessionToken(headers: Headers): string | null {
   const cookie = headers.get('cookie') || '';
@@ -232,7 +276,7 @@ function getSessionToken(headers: Headers): string | null {
  * Guard autentikasi untuk endpoint mutasi admin.
  * Mendukung 2 metode:
  * 1. Cookie `eb_session` (untuk web app)
- * 2. Header `Authorization: Bearer <jwt>` (untuk mobile app)
+ * 2. Header `Authorization: Bearer <session_token>` (untuk mobile app)
  *
  * Mengembalikan user bila valid, atau null (401).
  * GET/HEAD tetap terbuka — dipakai halaman publik (tracking, list layanan, dll).
@@ -242,20 +286,13 @@ export async function requireAdminSession(req: { headers: Headers }): Promise<Ad
   const cookieUser = await getSessionUser(getSessionToken(req.headers));
   if (cookieUser) return cookieUser;
 
-  // 2. Fallback: JWT token dari header Authorization (mobile)
+  // 2. Fallback: session token dari header Authorization (mobile)
   const authHeader = req.headers.get('authorization') || '';
   if (authHeader.startsWith('Bearer ')) {
     const token = authHeader.slice(7).trim();
     if (token) {
-      const jwtPayload = await verifyJwt(token);
-      if (jwtPayload) {
-        return {
-          id: String(jwtPayload.sub || ''),
-          username: String(jwtPayload.username || ''),
-          displayName: String(jwtPayload.displayName || jwtPayload.username || 'Owner'),
-          role: String(jwtPayload.role || 'owner'),
-        };
-      }
+      const tokenUser = await getSessionUser(token);
+      if (tokenUser) return tokenUser;
     }
   }
 

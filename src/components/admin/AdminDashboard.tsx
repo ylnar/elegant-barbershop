@@ -221,17 +221,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       .toString()
       .padStart(2, '0')}`;
 
-    await api.createBooking({
-      customerName: `[Walk-in] ${data.customerName}`,
-      customerPhone: data.customerPhone,
-      serviceId: data.serviceId,
-      barberId: data.barberId,
-      date: today,
-      timeSlot: currentHour,
-      isWalkIn: true,
-    });
+    try {
+      await api.createBooking({
+        customerName: `[Walk-in] ${data.customerName}`,
+        customerPhone: data.customerPhone,
+        serviceId: data.serviceId,
+        barberId: data.barberId,
+        date: today,
+        timeSlot: currentHour,
+        isWalkIn: true,
+      });
 
-    await onRefreshData();
+      await onRefreshData();
+      toast.success(`Walk-in ${data.customerName} berhasil dicatat.`);
+    } catch {
+      toast.error('Gagal mencatat walk-in. Coba lagi.');
+    }
   };
 
   // Admin manual booking creation
@@ -243,16 +248,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     date: string;
     timeSlot: string;
   }) => {
-    await api.createBooking({
-      customerName: data.customerName,
-      customerPhone: data.customerPhone,
-      serviceId: data.serviceId,
-      barberId: data.barberId === 'any' ? undefined : data.barberId,
-      date: data.date,
-      timeSlot: data.timeSlot,
-      isWalkIn: false,
-    });
-    await onRefreshData();
+    try {
+      await api.createBooking({
+        customerName: data.customerName,
+        customerPhone: data.customerPhone,
+        serviceId: data.serviceId,
+        barberId: data.barberId === 'any' ? undefined : data.barberId,
+        date: data.date,
+        timeSlot: data.timeSlot,
+        isWalkIn: false,
+      });
+      await onRefreshData();
+      toast.success(`Reservasi untuk ${data.customerName} berhasil dibuat.`);
+    } catch {
+      toast.error('Gagal membuat reservasi. Coba lagi.');
+    }
   };
 
   const handleBookingStatusChange = async (bookingId: string, status: Booking['status']) => {
@@ -267,8 +277,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
 
     // For other statuses (pending, confirmed, in_service, cancelled), update directly
-    await api.updateBooking(bookingId, { status });
-    await onRefreshData();
+    try {
+      await api.updateBooking(bookingId, { status });
+      await onRefreshData();
+      toast.success(`Status reservasi berhasil diubah ke "${status}".`);
+    } catch {
+      toast.error('Gagal mengubah status reservasi. Coba lagi.');
+    }
   };
 
   // Called after user confirms payment in CompletionPaymentModal
