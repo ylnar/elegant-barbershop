@@ -661,11 +661,17 @@ export const mongoRepo = {
       const existing = await col.findOne({ phone: normalized });
 
       if (existing) {
+        // Jangan timpa nama yang sudah dikenal untuk nomor yang sama —
+        // nama pertama yang tersimpan menjadi nama resmi (nickname).
+        const finalName =
+          (existing.name && existing.name.trim()) ||
+          (name && name.trim()) ||
+          'Pelanggan';
         const updated = await col.findOneAndUpdate(
           { _id: existing._id },
           {
             $set: {
-              name: (name && name.trim()) || existing.name || 'Pelanggan',
+              name: finalName,
               email: (email && email.trim()) || existing.email || null,
               lastBookingDate: today,
               updatedAt: new Date().toISOString(),

@@ -66,6 +66,31 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     return json({ error: 'Layanan tidak ditemukan.' }, 404);
   }
 
+  // Proteksi data: layanan yang sudah dipakai di transaksi / reservasi aktif
+  // TIDAK boleh dihapus (agar riwayat tetap utuh). Cukup di-nonaktifkan.
+  const usedInTransactions = serverStore
+    .getTransactions()
+    .some((t) => (t.items || []).some((i) => i.serviceId === id));
+  const usedInActiveBookings = serverStore
+    .getBookings()
+    .some((b) => b.serviceId === id && !['completed', 'cancelled'].includes(b.status));
+
+  if (usedInTransactions || usedInActiveBookings) {
+    let persisted = false;
+    try {
+      persisted = await mongoRepo.updateService(id, { isActive: false });
+    } catch (err) {
+      console.error('[MongoDB Deactivate Service Error]:', err);
+    }
+    serverStore.updateService(id, { isActive: false }, false);
+    return json({
+      success: true,
+      deactivated: true,
+      message:
+        'Layanan ini sudah dipakai di transaksi/reservasi sehingga tidak bisa dihapus. Layanan di-nonaktifkan saja agar data riwayat tetap aman.',
+    });
+  }
+
   // Try MongoDB first, fall back to in-memory
   let persistedToDatabase = false;
   try {
@@ -81,6 +106,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
   serverStore.deleteService(id, false);
   return json({
     success: true,
+    deactivated: false,
     message: persistedToDatabase
       ? 'Layanan berhasil dihapus dari MongoDB.'
       : 'Layanan berhasil dihapus (mode lokal).',

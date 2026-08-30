@@ -1,6 +1,6 @@
 import { serverStore } from '@server/state';
 import { Booking } from '@/types';
-import { isRateLimited, json, queryOf, readBody, sanitizeString, tooManyRequests } from '@lib/api';
+import { isRateLimited, json, queryOf, readBody, sanitizeString, normalizeNickname, tooManyRequests } from '@lib/api';
 import { mongoRepo } from '@server/mongoRepo';
 
 export const dynamic = 'force-dynamic';
@@ -102,7 +102,8 @@ export async function POST(req: Request) {
     );
   }
 
-  const customerName = sanitizeString(body.customerName);
+  // Nama panggilan pelanggan: satu kata, tanpa spasi.
+  let customerName = normalizeNickname(body.customerName);
   const customerPhone = sanitizeString(body.customerPhone).replace(/[^0-9]/g, '').slice(0, 16);
   const customerEmail = body.customerEmail ? sanitizeString(body.customerEmail) : undefined;
   const serviceId = sanitizeString(body.serviceId);
@@ -116,6 +117,15 @@ export async function POST(req: Request) {
       },
       400,
     );
+  }
+
+  // Deduplikasi pelanggan by nomor: bila nomor sudah tersimpan, otomatis pakai
+  // nama yang sudah dikenal (nickname) meskipun yang diketik berbeda.
+  try {
+    const existing = await mongoRepo.lookupCustomerByPhone(customerPhone);
+    if (existing && existing.name) customerName = existing.name;
+  } catch (err) {
+    console.warn('[Bookings Route] Gagal lookup pelanggan:', err);
   }
 
   // Validate: reject booking for past time slot on today (WIB timezone)

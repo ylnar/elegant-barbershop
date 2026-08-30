@@ -54,6 +54,20 @@ export function sanitizeString(input: unknown): string {
   return input.replace(/[<>]/g, '').trim();
 }
 
+/**
+ * Nama panggilan pelanggan: hanya satu kata tanpa spasi.
+ * Semua spasi dihapus sehingga nama menjadi nickname tunggal.
+ */
+export function normalizeNickname(input: unknown): string {
+  const raw = sanitizeString(input);
+  return raw.replace(/\s+/g, '').trim();
+}
+
+/** Normalisasi nomor telepon: hanya digit. */
+export function normalizePhoneDigits(input: unknown): string {
+  return sanitizeString(input).replace(/[^0-9]/g, '');
+}
+
 // ── Rate limiter sederhana berbasis memori ───────────────────────────────────
 
 const buckets = new Map<string, { count: number; resetTime: number }>();

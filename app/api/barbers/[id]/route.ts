@@ -57,6 +57,31 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     return json({ error: 'Barber tidak ditemukan.' }, 404);
   }
 
+  // Proteksi data: barber yang pernah melayani (transaksi) atau sedang
+  // dijadwalkan (reservasi aktif) TIDAK boleh dihapus — cukup di-nonaktifkan.
+  const servedTransactions = serverStore
+    .getTransactions()
+    .some((t) => t.barberId === id);
+  const scheduledBookings = serverStore
+    .getBookings()
+    .some((b) => b.barberId === id && !['completed', 'cancelled'].includes(b.status));
+
+  if (servedTransactions || scheduledBookings) {
+    let persisted = false;
+    try {
+      persisted = await mongoRepo.updateBarber(id, { isActive: false });
+    } catch (err) {
+      console.error('[MongoDB Deactivate Barber Error]:', err);
+    }
+    serverStore.updateBarber(id, { isActive: false }, false);
+    return json({
+      success: true,
+      deactivated: true,
+      message:
+        'Barber ini pernah melayani transaksi / terjadwal di reservasi sehingga tidak bisa dihapus. Barber di-nonaktifkan saja agar data riwayat tetap aman.',
+    });
+  }
+
   // Try MongoDB first, fall back to in-memory
   let persistedToDatabase = false;
   try {
@@ -72,6 +97,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
   serverStore.deleteBarber(id, false);
   return json({
     success: true,
+    deactivated: false,
     message: persistedToDatabase
       ? 'Barber berhasil dihapus dari MongoDB.'
       : 'Barber berhasil dihapus (mode lokal).',

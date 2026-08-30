@@ -1,6 +1,6 @@
 import { serverStore } from '@server/state';
 import { Transaction } from '@/types';
-import { json, apiError, queryOf, readBody, sanitizeString } from '@lib/api';
+import { json, apiError, queryOf, readBody, sanitizeString, normalizeNickname, normalizePhoneDigits } from '@lib/api';
 import { mongoRepo } from '@server/mongoRepo';
 import { requireAdminSession } from '@server/adminAuth';
 
@@ -87,8 +87,23 @@ export async function POST(req: Request) {
   const randomSuffix = Math.floor(100 + Math.random() * 900);
   const invoiceNumber = `TRX-${new Date().getFullYear()}-${randomSuffix}`;
 
-  const cleanCustomerName = sanitizeString(customerName) || 'Tamu Umum (Walk-in)';
-  const cleanCustomerPhone = customerPhone ? sanitizeString(customerPhone) : undefined;
+  // Nama panggilan: hanya satu kata tanpa spasi.
+  let cleanCustomerName = normalizeNickname(customerName) || 'Tamu Umum (Walk-in)';
+  const cleanCustomerPhone = customerPhone ? normalizePhoneDigits(customerPhone) : undefined;
+
+  // Deduplikasi pelanggan by nomor: bila nomor sudah tersimpan, otomatis pakai
+  // nama yang sudah dikenal (nama panggilan) meskipun yang diketik berbeda.
+  let canonicalName: string | undefined;
+  if (cleanCustomerPhone) {
+    try {
+      const existing = await mongoRepo.lookupCustomerByPhone(cleanCustomerPhone);
+      if (existing && existing.name) canonicalName = existing.name;
+    } catch (err) {
+      console.warn('[Transactions Route] Gagal lookup pelanggan:', err);
+    }
+  }
+  if (canonicalName) cleanCustomerName = canonicalName;
+
   const cleanNotes = notes ? sanitizeString(notes) : undefined;
 
   const newTransaction: Transaction = {

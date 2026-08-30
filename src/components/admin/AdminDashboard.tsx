@@ -154,8 +154,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     try {
       await api.deleteService(serviceToDelete.id);
       await onRefreshData();
+      const stillExists = services.some((s) => s.id === serviceToDelete.id);
       setServiceToDelete(null);
-      toast.success(`Layanan "${serviceToDelete.name}" berhasil dihapus.`);
+      if (stillExists) {
+        toast.info(
+          `Layanan "${serviceToDelete.name}" sudah dipakai di transaksi/reservasi sehingga TIDAK bisa dihapus — otomatis di-nonaktifkan agar riwayat tetap aman.`,
+        );
+      } else {
+        toast.success(`Layanan "${serviceToDelete.name}" berhasil dihapus.`);
+      }
     } catch {
       toast.error('Gagal menghapus layanan. Coba lagi.');
     } finally {
