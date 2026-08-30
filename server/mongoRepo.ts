@@ -651,6 +651,7 @@ export const mongoRepo = {
     name: string,
     phone: string,
     email?: string,
+    opts?: { overwriteName?: boolean },
   ): Promise<{ customer: Document; isNew: boolean } | null> {
     try {
       const col = await getMongoCollection<Document>(COLLECTIONS.CUSTOMERS);
@@ -663,10 +664,14 @@ export const mongoRepo = {
       if (existing) {
         // Jangan timpa nama yang sudah dikenal untuk nomor yang sama —
         // nama pertama yang tersimpan menjadi nama resmi (nickname).
+        // Kecuali edit eksplisit oleh admin (overwriteName=true) memakai
+        // nama baru yang diketik di form edit pelanggan.
         const finalName =
-          (existing.name && existing.name.trim()) ||
-          (name && name.trim()) ||
-          'Pelanggan';
+          opts?.overwriteName && name && name.trim()
+            ? name.trim()
+            : (existing.name && existing.name.trim()) ||
+              (name && name.trim()) ||
+              'Pelanggan';
         const updated = await col.findOneAndUpdate(
           { _id: existing._id },
           {
@@ -704,6 +709,87 @@ export const mongoRepo = {
       return { customer: mapCustomerRow(doc), isNew: true };
     } catch {
       return null;
+    }
+  },
+
+  /** Update pelanggan eksplisit (edit oleh admin) berdasarkan `id` dokumen. */
+  async updateCustomerById(
+    id: string,
+    updates: { name?: string; phone?: string; email?: string; isActive?: boolean },
+  ): Promise<Document | null> {
+    try {
+      const col = await getMongoCollection<Document>(COLLECTIONS.CUSTOMERS);
+      if (!col || !id) return null;
+      const existing = await col.findOne({ id, ...isDeletedFilter() });
+      if (!existing) return null;
+      const set: Record<string, unknown> = { updatedAt: new Date().toISOString() };
+      if (updates.name !== undefined) {
+        const name = String(updates.name || '').trim();
+        if (name) set.name = name;
+      }
+      if (updates.email !== undefined) {
+        set.email = String(updates.email || '').trim() || null;
+      }
+      if (updates.phone !== undefined) {
+        const phone = normalizePhone(updates.phone);
+        if (phone.length >= 8) {
+          // Hindari tabrakan nomor: jangan timpa bila nomor baru sudah dipakai doc lain.
+          const clash = await col.findOne({ phone, _id: { $ne: existing._id }, ...isDeletedFilter() });
+          if (!clash) set.phone = phone;
+        }
+      }
+      if (updates.isActive !== undefined) set.isActive = updates.isActive;
+      await col.updateOne({ _id: existing._id }, { $set: set });
+      const after = await col.findOne({ id, ...isDeletedFilter() });
+      return after ? mapCustomerRow(after) : null;
+    } catch {
+      return null;
+    }
+  },
+
+  /** Soft-delete pelanggan berdasarkan `id` dokumen. */
+  async deleteCustomer(id: string): Promise<boolean> {
+    try {
+      const col = await getMongoCollection<Document>(COLLECTIONS.CUSTOMERS);
+      if (!col) return false;
+      const result = await col.updateMany(
+        { id, ...isDeletedFilter() },
+        { $set: { isDeleted: true, deletedAt: new Date().toISOString(), updatedAt: new Date().toISOString() } },
+      );
+      return result.matchedCount > 0;
+    } catch {
+      return false;
+    }
+  },
+
+  /** Soft-delete pelanggan berdasarkan nomor HP (id sintetis `cust-<phone>`). */
+  async deleteCustomerByPhone(phone: string): Promise<boolean> {
+    try {
+      const col = await getMongoCollection<Document>(COLLECTIONS.CUSTOMERS);
+      if (!col) return false;
+      const result = await col.updateMany(
+        { phone: normalizePhone(phone) },
+        { $set: { isDeleted: true, deletedAt: new Date().toISOString(), updatedAt: new Date().toISOString() } },
+      );
+      return result.matchedCount > 0;
+    } catch {
+      return false;
+    }
+  },
+
+  /** Daftar nomor HP pelanggan yang sudah di-soft-delete (untuk filter fallback). */
+  async fetchDeletedCustomerPhones(): Promise<string[]> {
+    try {
+      const col = await getMongoCollection<Document>(COLLECTIONS.CUSTOMERS);
+      if (!col) return [];
+      const rows = await col
+        .find({ isDeleted: true })
+        .project({ phone: 1, _id: 0 })
+        .limit(2000)
+        .toArray();
+      return rows.map((r) => normalizeStr(r.phone, '')).filter(Boolean);
+    } catch {
+      return [];
     }
   },
 

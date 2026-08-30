@@ -5,8 +5,11 @@ import { bookingsService } from './bookingsService';
 import { transactionsService } from './transactionsService';
 import { aiService } from './aiService';
 import { blueprintService } from './blueprintService';
-import { lookupCustomerByPhone, upsertCustomer, fetchCustomers } from './customersService';
+import { lookupCustomerByPhone, upsertCustomer, fetchCustomers, updateCustomer, deleteCustomer } from './customersService';
 import { STORAGE_KEYS } from './storage';
+
+// Re-export tipe Customer agar bisa diimpor dari satu pintu (services/api).
+export type { Customer } from './customersService';
 
 export {
   STORAGE_KEYS,
@@ -20,6 +23,8 @@ export {
   lookupCustomerByPhone,
   upsertCustomer,
   fetchCustomers,
+  updateCustomer,
+  deleteCustomer,
 };
 
 /**
@@ -67,4 +72,6 @@ export const api = {
   lookupCustomerByPhone,
   upsertCustomer,
   fetchCustomers,
+  updateCustomer,
+  deleteCustomer,
 };

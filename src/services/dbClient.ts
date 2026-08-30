@@ -371,3 +371,20 @@ export async function fetchCustomers(): Promise<Customer[]> {
     return [];
   }
 }
+
+export const dbUpdateCustomer = async (
+  id: string,
+  updates: { name?: string; email?: string; phone?: string; isActive?: boolean },
+): Promise<Customer> => {
+  const res = await request<{ success: boolean; customer: Customer }>(`/api/customers/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(updates),
+  });
+  return res.customer;
+};
+
+export const dbDeleteCustomer = async (id: string): Promise<boolean> => {
+  await request<{ success: boolean }>(`/api/customers/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  return true;
+};

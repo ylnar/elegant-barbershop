@@ -1,8 +1,11 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { Search, Users, Phone } from 'lucide-react';
-import { fetchCustomers } from '../../../services/api';
-import { Customer } from '../../../services/dbClient';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { Search, Users, Phone, Edit2, Trash2 } from 'lucide-react';
+import { fetchCustomers, updateCustomer, deleteCustomer, Customer } from '../../../services/api';
 import { formatDateIndonesian } from '../../../utils/formatters';
+import { RowActionMenu } from '../../ui/RowActionMenu';
+import { CustomerFormModal } from '../modals/CustomerFormModal';
+import { ConfirmModal } from '../modals/ConfirmModal';
+import { toast } from '../../ui/Toast';
 
 interface CustomersTabProps {
   onRefreshData?: () => Promise<void>;
@@ -12,6 +15,26 @@ export const CustomersTab: React.FC<CustomersTabProps> = ({ onRefreshData }) => 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
+
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const closeMenu = useCallback(() => setOpenMenuId(null), []);
+
+  // Edit modal state
+  const [editOpen, setEditOpen] = useState(false);
+  const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
+
+  // Delete confirm state
+  const [deleteTarget, setDeleteTarget] = useState<Customer | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      const data = await fetchCustomers();
+      setCustomers(data || []);
+    } catch {
+      setCustomers([]);
+    }
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -40,6 +63,48 @@ export const CustomersTab: React.FC<CustomersTabProps> = ({ onRefreshData }) => 
     );
   }, [customers, search]);
 
+  const handleEdit = (c: Customer) => {
+    setEditingCustomer(c);
+    setEditOpen(true);
+  };
+
+  const handleSaveEdit = async (data: { name: string; phone: string; email: string }) => {
+    if (!editingCustomer) return;
+    await updateCustomer(editingCustomer.id, data);
+    toast.success(`Data pelanggan ${data.name} berhasil diperbarui.`);
+    await load();
+    if (onRefreshData) {
+      try {
+        await onRefreshData();
+      } catch {
+        // refresh dataset lain gagal tidak memengaruhi tab ini
+      }
+    }
+    setEditingCustomer(null);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await deleteCustomer(deleteTarget.id);
+      toast.success(`Pelanggan ${deleteTarget.name} berhasil dihapus.`);
+      await load();
+      if (onRefreshData) {
+        try {
+          await onRefreshData();
+        } catch {
+          // refresh dataset lain gagal tidak memengaruhi tab ini
+        }
+      }
+      setDeleteTarget(null);
+    } catch (err: any) {
+      toast.error(err?.message || 'Gagal menghapus pelanggan. Coba lagi.');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -47,7 +112,8 @@ export const CustomersTab: React.FC<CustomersTabProps> = ({ onRefreshData }) => 
           <h3 className="text-lg font-bold text-white font-serif">Data Pelanggan</h3>
           <p className="text-xs text-stone-400">
             Daftar pelanggan terdaftar dari nomor telepon. Nama memakai nama panggilan (tanpa spasi) dan
-            otomatis dipakai ulang saat nomor yang sama kembali bertransaksi.
+            otomatis dipakai ulang saat nomor yang sama kembali bertransaksi. Klik menu titik-3 untuk edit
+            atau hapus.
           </p>
         </div>
         <div className="relative w-full sm:w-72">
@@ -82,6 +148,7 @@ export const CustomersTab: React.FC<CustomersTabProps> = ({ onRefreshData }) => 
                   <th className="py-3 px-4">Nomor Telepon</th>
                   <th className="py-3 px-4">Total Kunjungan</th>
                   <th className="py-3 px-4">Terakhir Booking</th>
+                  <th className="py-3 px-4 text-right">Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-800 text-stone-300">
@@ -104,6 +171,27 @@ export const CustomersTab: React.FC<CustomersTabProps> = ({ onRefreshData }) => 
                     <td className="py-3 px-4 text-stone-400">
                       {c.lastBookingDate ? formatDateIndonesian(c.lastBookingDate.split('T')[0]) : '-'}
                     </td>
+                    <td className="py-3 px-4 text-right">
+                      <RowActionMenu
+                        itemId={`customer-${c.id || c.phone}`}
+                        isOpen={openMenuId === `customer-${c.id || c.phone}`}
+                        onToggle={setOpenMenuId}
+                        ariaLabel={`Aksi untuk pelanggan ${c.name}`}
+                        items={[
+                          {
+                            label: 'Edit Pelanggan',
+                            icon: Edit2,
+                            onClick: () => handleEdit(c),
+                          },
+                          {
+                            label: 'Hapus Pelanggan',
+                            icon: Trash2,
+                            danger: true,
+                            onClick: () => setDeleteTarget(c),
+                          },
+                        ]}
+                      />
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -117,6 +205,34 @@ export const CustomersTab: React.FC<CustomersTabProps> = ({ onRefreshData }) => 
           )}
         </div>
       )}
+
+      <CustomerFormModal
+        isOpen={editOpen}
+        editingCustomer={editingCustomer}
+        onClose={() => {
+          closeMenu();
+          setEditOpen(false);
+          setEditingCustomer(null);
+        }}
+        onSave={handleSaveEdit}
+      />
+
+      <ConfirmModal
+        isOpen={deleteTarget !== null}
+        title="Hapus Data Pelanggan"
+        description={
+          deleteTarget
+            ? `Data pelanggan "${deleteTarget.name}" (${deleteTarget.phone}) akan dihapus. Riwayat reservasi & transaksi tetap tersimpan, tapi pelanggan tidak lagi muncul di daftar. Lanjutkan?`
+            : ''
+        }
+        confirmText="Ya, Hapus"
+        cancelText="Batal"
+        variant="danger"
+        icon="trash"
+        isLoading={deleting}
+        onConfirm={handleConfirmDelete}
+        onClose={() => setDeleteTarget(null)}
+      />
     </div>
   );
 };

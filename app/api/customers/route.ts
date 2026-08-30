@@ -33,10 +33,14 @@ export async function GET(req: Request) {
 
   // Fallback: bangun daftar pelanggan dari data booking lokal
   const bookings = serverStore.getBookings();
+  const deletedPhones = new Set(await mongoRepo.fetchDeletedCustomerPhones());
   const map = new Map<string, { name: string; phone: string; email?: string; last: string }>();
   for (const b of bookings) {
     const phone = (b.customerPhone || '').replace(/[^0-9]/g, '');
     if (!phone) continue;
+    // Lewati nomor yang sudah dihapus admin (soft-delete) agar tidak muncul lagi.
+    const merchantPhone = phone.startsWith('0') ? `62${phone.slice(1)}` : phone;
+    if (deletedPhones.has(merchantPhone)) continue;
     const existing = map.get(phone);
     if (!existing) {
       map.set(phone, {
