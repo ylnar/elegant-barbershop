@@ -73,6 +73,30 @@ export async function POST(req: Request) {
     notes,
   } = body;
 
+  // Idempotensi: request ulang (retry setelah timeout) dengan key yang sama
+  // mengembalikan transaksi yang sudah tersimpan, bukan membuat duplikat.
+  const idempotencyKey = body.idempotencyKey
+    ? sanitizeString(body.idempotencyKey).slice(0, 120)
+    : '';
+  if (idempotencyKey) {
+    try {
+      const existing = await mongoRepo.findTransactionByIdempotencyKey(idempotencyKey);
+      if (existing) {
+        return json(
+          {
+            success: true,
+            transaction: existing,
+            message: `Transaksi ${existing.invoiceNumber} sudah tersimpan sebelumnya.`,
+            duplicate: true,
+          },
+          200,
+        );
+      }
+    } catch (err) {
+      console.warn('[Transactions Route] Gagal cek idempotencyKey:', err);
+    }
+  }
+
   if (!items || !Array.isArray(items) || items.length === 0) {
     return json({ error: 'Minimal pilih 1 layanan transaksi.' }, 400);
   }
@@ -109,6 +133,7 @@ export async function POST(req: Request) {
   const newTransaction: Transaction = {
     id: `trx-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
     invoiceNumber,
+    idempotencyKey: idempotencyKey || undefined,
     bookingId: bookingId ? sanitizeString(bookingId) : undefined,
     customerName: cleanCustomerName,
     customerPhone: cleanCustomerPhone,

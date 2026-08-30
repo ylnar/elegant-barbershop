@@ -2,6 +2,7 @@ export type ServiceCategory = 'haircut' | 'shave' | 'treatment' | 'beard' | 'pac
 
 export interface Service {
   id: string;
+  idempotencyKey?: string; // kunci anti-duplikat untuk create dari klien
   name: string;
   category: ServiceCategory;
   price: number; // in IDR (Rupiah)
@@ -13,6 +14,7 @@ export interface Service {
 
 export interface Barber {
   id: string;
+  idempotencyKey?: string; // kunci anti-duplikat untuk create dari klien
   name: string;
   phone?: string; // WhatsApp number for barber notifications
   isActive: boolean;
@@ -33,6 +35,7 @@ export interface TransactionItem {
 export interface Transaction {
   id: string;
   invoiceNumber: string; // e.g. TRX-2024-001
+  idempotencyKey?: string; // kunci anti-duplikat untuk create dari klien
   bookingId?: string;
   customerName: string;
   customerPhone?: string;
@@ -52,6 +55,7 @@ export interface Transaction {
 export interface Booking {
   id: string;
   bookingCode: string; // e.g. ELG-4921
+  idempotencyKey?: string; // kunci anti-duplikat untuk create dari klien
   customerName: string;
   customerPhone: string;
   customerEmail?: string;

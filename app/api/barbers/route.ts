@@ -33,8 +33,27 @@ export async function POST(req: Request) {
     return json({ error: 'Nama barber wajib diisi.' }, 400);
   }
 
+  // Idempotensi: request ulang dengan key yang sama tidak membuat barber ganda.
+  const idempotencyKey = body.idempotencyKey
+    ? sanitizeString(body.idempotencyKey).slice(0, 120)
+    : '';
+  if (idempotencyKey) {
+    try {
+      const existing = await mongoRepo.findBarberByIdempotencyKey(idempotencyKey);
+      if (existing) {
+        return json(
+          { success: true, barber: existing, message: 'Barber sudah tersimpan sebelumnya.', duplicate: true },
+          200,
+        );
+      }
+    } catch (err) {
+      console.warn('[Barbers Route] Gagal cek idempotencyKey:', err);
+    }
+  }
+
   const newBarber: Barber = {
     id: body.id || `barber-${Date.now()}`,
+    idempotencyKey: idempotencyKey || undefined,
     name,
     phone: body.phone ? sanitizeString(body.phone) : undefined,
     isActive: body.isActive !== false,

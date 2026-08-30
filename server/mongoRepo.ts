@@ -94,6 +94,7 @@ function normalizePhone(phone: string): string {
 function mapServiceRow(row: WithId<Document>): Service {
   return {
     id: normalizeStr(row.id, String(row._id)),
+    idempotencyKey: row.idempotencyKey ? normalizeStr(row.idempotencyKey) : undefined,
     name: normalizeStr(row.name, 'Layanan Pangkas'),
     category: (row.category || row.categorySlug || 'haircut') as Service['category'],
     price: normalizeNum(row.price),
@@ -107,6 +108,7 @@ function mapServiceRow(row: WithId<Document>): Service {
 function mapBarberRow(row: WithId<Document>): Barber {
   return {
     id: normalizeStr(row.id, String(row._id)),
+    idempotencyKey: row.idempotencyKey ? normalizeStr(row.idempotencyKey) : undefined,
     name: normalizeStr(row.name, 'Barber'),
     phone: row.phone ? normalizeStr(row.phone) : undefined,
     isActive: normalizeBool(row.isActive ?? row.is_active, true),
@@ -123,6 +125,7 @@ function mapBookingRow(row: WithId<Document>): Booking {
   return {
     id: normalizeStr(row.id, String(row._id)),
     bookingCode: normalizeStr(row.bookingCode ?? row.booking_code),
+    idempotencyKey: row.idempotencyKey ? normalizeStr(row.idempotencyKey) : undefined,
     customerName: normalizeStr(row.customerName ?? row.customer_name, 'Pelanggan'),
     customerPhone: normalizeStr(row.customerPhone ?? row.customer_phone, ''),
     customerEmail: row.customerEmail || row.customer_email ? normalizeStr(row.customerEmail ?? row.customer_email) : undefined,
@@ -146,6 +149,7 @@ function mapTransactionRow(row: WithId<Document>): Transaction {
   return {
     id: normalizeStr(row.id, String(row._id)),
     invoiceNumber: normalizeStr(row.invoiceNumber ?? row.invoice_number),
+    idempotencyKey: row.idempotencyKey ? normalizeStr(row.idempotencyKey) : undefined,
     bookingId: row.bookingId ? normalizeStr(row.bookingId) : undefined,
     customerName: normalizeStr(row.customerName ?? row.customer_name, 'Pelanggan'),
     customerPhone: row.customerPhone || row.customer_phone
@@ -252,6 +256,24 @@ export const mongoRepo = {
     );
   },
 
+  /**
+   * Cari layanan yang sudah pernah dibuat dengan idempotencyKey yang sama
+   * (anti-duplikat create saat klien mengulang request yang gagal timeout).
+   */
+  async findServiceByIdempotencyKey(key: string): Promise<Service | null> {
+    return runWithMongo(
+      COLLECTIONS.SERVICES,
+      async (col) => {
+        const row = await col.findOne({
+          idempotencyKey: key,
+          ...isDeletedFilter(),
+        });
+        return row ? mapServiceRow(row) : null;
+      },
+      null,
+    );
+  },
+
   async updateService(id: string, updates: Partial<Service>): Promise<boolean> {
     return runWithMongo(
       COLLECTIONS.SERVICES,
@@ -323,6 +345,21 @@ export const mongoRepo = {
     );
   },
 
+  /** Cari barber yang sudah pernah dibuat dengan idempotencyKey yang sama. */
+  async findBarberByIdempotencyKey(key: string): Promise<Barber | null> {
+    return runWithMongo(
+      COLLECTIONS.BARBERS,
+      async (col) => {
+        const row = await col.findOne({
+          idempotencyKey: key,
+          ...isDeletedFilter(),
+        });
+        return row ? mapBarberRow(row) : null;
+      },
+      null,
+    );
+  },
+
   async updateBarber(id: string, updates: Partial<Barber>): Promise<boolean> {
     return runWithMongo(
       COLLECTIONS.BARBERS,
@@ -391,6 +428,21 @@ export const mongoRepo = {
         return res.acknowledged;
       },
       false,
+    );
+  },
+
+  /** Cari booking yang sudah pernah dibuat dengan idempotencyKey yang sama. */
+  async findBookingByIdempotencyKey(key: string): Promise<Booking | null> {
+    return runWithMongo(
+      COLLECTIONS.BOOKINGS,
+      async (col) => {
+        const row = await col.findOne({
+          idempotencyKey: key,
+          ...isDeletedFilter(),
+        });
+        return row ? mapBookingRow(row) : null;
+      },
+      null,
     );
   },
 
@@ -601,6 +653,21 @@ export const mongoRepo = {
         return res.acknowledged;
       },
       false,
+    );
+  },
+
+  /** Cari transaksi yang sudah pernah dibuat dengan idempotencyKey yang sama. */
+  async findTransactionByIdempotencyKey(key: string): Promise<Transaction | null> {
+    return runWithMongo(
+      COLLECTIONS.TRANSACTIONS,
+      async (col) => {
+        const row = await col.findOne({
+          idempotencyKey: key,
+          ...isDeletedFilter(),
+        });
+        return row ? mapTransactionRow(row) : null;
+      },
+      null,
     );
   },
 

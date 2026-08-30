@@ -92,6 +92,31 @@ export async function POST(req: Request) {
   const isManualWalkIn = body.isWalkIn === true;
   const isAdminEntry = body.isAdminEntry === true;
 
+  // Idempotensi: bila klien mengirim ulang request yang sama (retry setelah
+  // timeout/jaringan putus), kembalikan booking yang sudah tersimpan — mencegah
+  // duplikat saat aplikasi HP atau web mengulang POST yang sebenarnya sukses.
+  const idempotencyKey = body.idempotencyKey
+    ? sanitizeString(body.idempotencyKey).slice(0, 120)
+    : '';
+  if (idempotencyKey) {
+    try {
+      const existing = await mongoRepo.findBookingByIdempotencyKey(idempotencyKey);
+      if (existing) {
+        return json(
+          {
+            success: true,
+            booking: existing,
+            message: `Reservasi sudah tercatat sebelumnya. Kode: ${existing.bookingCode}`,
+            duplicate: true,
+          },
+          200,
+        );
+      }
+    } catch (err) {
+      console.warn('[Bookings Route] Gagal cek idempotencyKey:', err);
+    }
+  }
+
   if (!settings.isBookingOpen && !isManualWalkIn && !isAdminEntry) {
     return json(
       {
@@ -228,6 +253,7 @@ export async function POST(req: Request) {
   const newBooking: Booking = {
     id: `bk-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
     bookingCode,
+    idempotencyKey: idempotencyKey || undefined,
     customerName,
     customerPhone,
     customerEmail,

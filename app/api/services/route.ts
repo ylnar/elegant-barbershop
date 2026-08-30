@@ -33,6 +33,24 @@ export async function POST(req: Request) {
     return json({ error: 'Nama layanan wajib diisi.' }, 400);
   }
 
+  // Idempotensi: request ulang dengan key yang sama tidak membuat layanan ganda.
+  const idempotencyKey = body.idempotencyKey
+    ? sanitizeString(body.idempotencyKey).slice(0, 120)
+    : '';
+  if (idempotencyKey) {
+    try {
+      const existing = await mongoRepo.findServiceByIdempotencyKey(idempotencyKey);
+      if (existing) {
+        return json(
+          { success: true, service: existing, message: 'Layanan sudah tersimpan sebelumnya.', duplicate: true },
+          200,
+        );
+      }
+    } catch (err) {
+      console.warn('[Services Route] Gagal cek idempotencyKey:', err);
+    }
+  }
+
   const parsedPrice = Number(body.price);
   if (!Number.isFinite(parsedPrice) || parsedPrice < 0) {
     return json({ error: 'Harga layanan harus berupa angka yang valid.' }, 400);
@@ -40,6 +58,7 @@ export async function POST(req: Request) {
   const price = parsedPrice;
   const newService: Service = {
     id: body.id || `srv-${Date.now()}`,
+    idempotencyKey: idempotencyKey || undefined,
     name,
     category: body.category || 'haircut',
     price,
