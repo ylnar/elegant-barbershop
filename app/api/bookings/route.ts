@@ -115,6 +115,20 @@ export async function POST(req: Request) {
     } catch (err) {
       console.warn('[Bookings Route] Gagal cek idempotencyKey:', err);
     }
+    // Fallback: cek idempotencyKey di store in-memory (mis. MongoDB tidak
+    // aktif). Mengulang request yang sama tidak boleh membuat booking baru.
+    const inMemory = serverStore.findBookingByIdempotencyKey(idempotencyKey);
+    if (inMemory) {
+      return json(
+        {
+          success: true,
+          booking: inMemory,
+          message: `Reservasi sudah tercatat sebelumnya. Kode: ${inMemory.bookingCode}`,
+          duplicate: true,
+        },
+        200,
+      );
+    }
   }
 
   if (!settings.isBookingOpen && !isManualWalkIn && !isAdminEntry) {

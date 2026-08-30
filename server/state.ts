@@ -196,6 +196,16 @@ class ServerStore {
     this.bookings = [...bookings];
   }
 
+  /**
+   * Cari booking yang sudah pernah dibuat dengan idempotencyKey yang sama
+   * di memori. Fallback saat MongoDB tidak tersedia — mencegah duplikat
+   * dari pengulangan request (tap ganda / retry offline) di mode in-memory.
+   */
+  findBookingByIdempotencyKey(key: string): Booking | null {
+    if (!key) return null;
+    return this.bookings.find((b) => b.idempotencyKey === key) || null;
+  }
+
   addBooking(booking: Booking, persist = true): Booking {
     this.bookings.unshift(booking);
     if (persist) {
