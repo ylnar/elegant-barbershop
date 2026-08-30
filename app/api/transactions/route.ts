@@ -3,6 +3,7 @@ import { Transaction } from '@/types';
 import { json, apiError, queryOf, readBody, sanitizeString, normalizeNickname, normalizePhoneDigits } from '@lib/api';
 import { mongoRepo } from '@server/mongoRepo';
 import { requireAdminSession } from '@server/adminAuth';
+import { isMongoAvailable } from '@server/mongodb';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -14,29 +15,32 @@ export async function GET(req: Request) {
   const paymentMethod = sp.get('paymentMethod');
   const search = sp.get('search');
 
-  // Coba ambil dari MongoDB. queryTransactions mengembalikan [] bila
-  // koleksi kosong (data memang tidak ada), atau [] bila MongoDB down.
-  // Untuk membedakan: queryTransactions yang return [] dari koleksi kosong
-  // dan fallback in-memory TIDAK boleh terjadi — kita HANYA pakai MongoDB.
-  // Bila MongoDB mati, return [] langsung (bukan stale data dari in-memory).
-  let mongoAvailable = false;
+  // Cek ketersediaan MongoDB SEBELUM query.
+  // Bila MongoDB down, kembalikan 503 agar client bisa jatuh ke localStorage cache
+  // (bukan return [] yang akan meng-overwrite cache lokal dengan data kosong).
+  if (!isMongoAvailable()) {
+    return apiError(
+      'Database sedang tidak tersedia. Menampilkan data dari cache lokal.',
+      503,
+      { cached: true },
+    );
+  }
+
   try {
     const remote = await mongoRepo.queryTransactions({
       date: date || undefined,
       paymentMethod: paymentMethod && paymentMethod !== 'all' ? paymentMethod : undefined,
       search: search || undefined,
     });
-    mongoAvailable = true;
     return json(remote);
   } catch (err) {
     console.warn('[MongoDB Transactions Error]:', err);
+    return apiError(
+      'Gagal mengambil data transaksi dari database. Menampilkan data dari cache lokal.',
+      503,
+      { cached: true },
+    );
   }
-
-  // MongoDB tidak tersedia: return [] (bukan data in-memory stale).
-  // Data in-memory TIDAK bisa dipercaya karena tidak sinkron dengan
-  // soft-delete di MongoDB — mengembalikannya akan membuat transaksi
-  // yang sudah dihapus muncul kembali.
-  return json([]);
 }
 
 // POST /api/transactions

@@ -3,12 +3,22 @@ import { Service } from '@/types';
 import { json, apiError, readBody, sanitizeString } from '@lib/api';
 import { mongoRepo } from '@server/mongoRepo';
 import { requireAdminSession } from '@server/adminAuth';
+import { isMongoAvailable } from '@server/mongodb';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 // GET /api/services - Always fetch fresh dynamic data from MongoDB
 export async function GET() {
+  // Cek ketersediaan MongoDB SEBELUM query.
+  if (!isMongoAvailable()) {
+    return apiError(
+      'Database sedang tidak tersedia. Menampilkan data dari cache lokal.',
+      503,
+      { cached: true },
+    );
+  }
+
   try {
     const remote = await mongoRepo.fetchServices();
     if (remote !== null) {
@@ -19,8 +29,11 @@ export async function GET() {
     console.warn('[Services Route] MongoDB fetch error:', err);
   }
 
-  // MongoDB tidak tersedia: return [] (bukan data in-memory stale)
-  return json([]);
+  return apiError(
+    'Gagal mengambil data layanan dari database.',
+    503,
+    { cached: true },
+  );
 }
 
 // POST /api/services

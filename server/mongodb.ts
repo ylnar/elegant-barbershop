@@ -377,7 +377,7 @@ export const ensureMongoIndexes = async (): Promise<void> => {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-function maskUri(uri: string): string {
+export function maskUri(uri: string): string {
   try {
     const u = new URL(uri.replace('mongodb+srv://', 'mongodb://'));
     if (u.username) u.username = '****';
@@ -386,6 +386,22 @@ function maskUri(uri: string): string {
   } catch {
     return uri.slice(0, 12) + '****';
   }
+}
+
+// ── Availability Check ──────────────────────────────────────────────────────
+
+/**
+ * Cek apakah MongoDB sedang terhubung tanpa melakukan ping.
+ * Dipakai oleh route handler GET untuk membedakan "DB down → return 503"
+ * dari "DB up, koleksi kosong → return []".
+ * Bila MongoDB tidak dikonfigurasi, kembalikan false (mode in-memory).
+ */
+export function isMongoAvailable(): boolean {
+  if (!mongoConfig.isConfigured) return false;
+  // Bila dalam FAIL_WINDOW_MS terakhir gagal, anggap masih down
+  if (Date.now() - lastFailAt < FAIL_WINDOW_MS) return false;
+  // Ada runtime aktif → pasti terhubung
+  return runtime !== null;
 }
 
 // ── Status Report ────────────────────────────────────────────────────────────

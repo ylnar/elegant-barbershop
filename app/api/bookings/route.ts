@@ -1,7 +1,8 @@
 import { serverStore } from '@server/state';
 import { Booking } from '@/types';
-import { isRateLimited, json, queryOf, readBody, sanitizeString, normalizeNickname, tooManyRequests } from '@lib/api';
+import { isRateLimited, json, apiError, queryOf, readBody, sanitizeString, normalizeNickname, tooManyRequests } from '@lib/api';
 import { mongoRepo } from '@server/mongoRepo';
+import { isMongoAvailable } from '@server/mongodb';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -36,6 +37,17 @@ export async function GET(req: Request) {
   const search = sp.get('search');
   const hasFilters = Boolean(code || date || status || search);
 
+  // Cek ketersediaan MongoDB SEBELUM query.
+  // Bila MongoDB down, kembalikan 503 agar client bisa jatuh ke localStorage cache
+  // (bukan return [] yang akan meng-overwrite cache lokal dengan data kosong).
+  if (!isMongoAvailable()) {
+    return apiError(
+      'Database sedang tidak tersedia. Menampilkan data dari cache lokal.',
+      503,
+      { cached: true },
+    );
+  }
+
   try {
     const remote = await mongoRepo.queryBookings({
       code: code || undefined,
@@ -48,13 +60,12 @@ export async function GET(req: Request) {
     return json(remote);
   } catch (err) {
     console.warn('[MongoDB Bookings Error]:', err);
+    return apiError(
+      'Gagal mengambil data reservasi dari database. Menampilkan data dari cache lokal.',
+      503,
+      { cached: true },
+    );
   }
-
-  // MongoDB tidak tersedia: return [] (bukan data in-memory stale).
-  // In-memory TIDAK bisa dipercaya karena tidak sinkron dengan soft-delete
-  // di MongoDB — mengembalikannya akan membuat booking yang sudah dihapus
-  // muncul kembali.
-  return json([]);
 }
 
 // POST /api/bookings - Rate limited to prevent spam

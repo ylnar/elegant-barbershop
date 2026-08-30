@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   ShieldCheck,
   Radio,
@@ -13,6 +13,7 @@ import {
   CreditCard,
   CalendarCheck,
   Trash2,
+  RefreshCw,
 } from 'lucide-react';
 import { Booking, Service, Barber, SystemSettings, Transaction, PaymentMethod } from '../../types';
 import { api } from '../../services/api';
@@ -69,6 +70,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     'transactions' | 'bookings' | 'switch' | 'services' | 'barbers' | 'customers' | 'reports' | 'guide' | 'trash'
   >('transactions');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   // Modals state
   const [adminBookingModalOpen, setAdminBookingModalOpen] = useState<boolean>(false);
@@ -125,6 +127,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       document.body.style.overflow = originalStyle;
     };
   }, []);
+
+  // Manual sync/refresh handler
+  const handleSync = useCallback(async () => {
+    if (isSyncing) return;
+    setIsSyncing(true);
+    try {
+      await onRefreshData();
+      await loadCustomers();
+      toast.success('Data berhasil disinkronkan dari database.');
+    } catch {
+      toast.error('Gagal sinkronisasi. Periksa koneksi ke server/database.');
+    } finally {
+      setIsSyncing(false);
+    }
+  }, [isSyncing, onRefreshData]);
 
   // Master Switch Action
   const handleToggleMasterSwitch = async () => {
@@ -646,6 +663,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </div>
               </div>
             )}
+
+            {/* Sync / Refresh Button */}
+            <button
+              onClick={handleSync}
+              disabled={isSyncing}
+              className="flex items-center gap-1.5 px-2.5 sm:px-3.5 py-1.5 rounded-xl bg-[#D4AF37]/10 hover:bg-[#D4AF37]/20 text-[#D4AF37] border border-[#D4AF37]/30 text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Sinkronkan data dari database"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">{isSyncing ? 'Sync...' : 'Sync'}</span>
+            </button>
 
             <button
               onClick={() => setLogoutModalOpen(true)}
