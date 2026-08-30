@@ -48,7 +48,12 @@ export const barbersService = {
   },
 
   async deleteBarber(id: string): Promise<boolean> {
-    await dbDeleteBarber(id);
+    try {
+      await dbDeleteBarber(id);
+    } catch (e: any) {
+      // 404 = sudah tidak ada di server → anggap berhasil agar cache lokal ikut bersih
+      if (e?.status !== 404) throw e;
+    }
 
     const list = getLocal<Barber[]>(STORAGE_KEYS.BARBERS, INITIAL_BARBERS).filter((b) => b.id !== id);
     setLocal(STORAGE_KEYS.BARBERS, list);

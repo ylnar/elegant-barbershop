@@ -19,7 +19,11 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
     } catch {
       // ignore non-JSON error body
     }
-    throw new Error(message);
+    const err: any = new Error(message);
+    // Simpan status HTTP agar service layer bisa membedakan 404 ("sudah tidak
+    // ada") dari kegagalan lain.
+    err.status = res.status;
+    throw err;
   }
   return res.json();
 }

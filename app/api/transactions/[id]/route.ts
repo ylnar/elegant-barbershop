@@ -25,8 +25,12 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
   }
 
   // Always delete from in-memory (persist=false since route already handled MongoDB)
-  const deleted = serverStore.deleteTransaction(id, false);
-  if (!deleted) {
+  const deletedInMemory = serverStore.deleteTransaction(id, false);
+
+  // Sukses bila salah satu berhasil. Instance serverless bisa kehilangan
+  // state in-memory (cold start / recycle) padahal data ada di MongoDB —
+  // JANGAN lapor 404 hanya karena memory tidak punya id-nya.
+  if (!persistedToDatabase && !deletedInMemory) {
     return json({ error: 'Transaksi tidak ditemukan.' }, 404);
   }
   return json({

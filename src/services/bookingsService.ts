@@ -139,8 +139,11 @@ export const bookingsService = {
     try {
       await dbDeleteBooking(id);
     } catch (e: any) {
-      console.error('[DB Delete Booking]:', e?.message || e);
-      throw e;
+      // 404 = sudah tidak ada di server → anggap berhasil agar cache lokal ikut bersih
+      if (e?.status !== 404) {
+        console.error('[DB Delete Booking]:', e?.message || e);
+        throw e;
+      }
     }
     // Update local cache
     const bookings = getLocal<Booking[]>(STORAGE_KEYS.BOOKINGS, INITIAL_BOOKINGS);

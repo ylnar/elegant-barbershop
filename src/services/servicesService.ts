@@ -51,7 +51,12 @@ export const servicesService = {
   },
 
   async deleteService(id: string): Promise<boolean> {
-    await dbDeleteService(id);
+    try {
+      await dbDeleteService(id);
+    } catch (e: any) {
+      // 404 = sudah tidak ada di server → anggap berhasil agar cache lokal ikut bersih
+      if (e?.status !== 404) throw e;
+    }
 
     const list = getLocal<Service[]>(STORAGE_KEYS.SERVICES, INITIAL_SERVICES).filter((s) => s.id !== id);
     setLocal(STORAGE_KEYS.SERVICES, list);

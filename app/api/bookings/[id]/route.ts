@@ -107,14 +107,18 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
   }
   const { id } = await params;
 
+  let persistedToDatabase = false;
   try {
-    await mongoRepo.deleteBooking(id);
+    persistedToDatabase = await mongoRepo.deleteBooking(id);
   } catch (err) {
     console.error('[MongoDB Delete Booking Error]:', err);
   }
 
-  const removed = serverStore.deleteBooking(id, false);
-  if (!removed) {
+  const removedInMemory = serverStore.deleteBooking(id, false);
+
+  // Sukses bila salah satu berhasil — jangan 404 hanya karena instance
+  // serverless kehilangan state in-memory padahal data ada di MongoDB.
+  if (!persistedToDatabase && !removedInMemory) {
     return json({ error: 'Data booking tidak ditemukan.' }, 404);
   }
 

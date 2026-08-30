@@ -96,8 +96,15 @@ export const transactionsService = {
     try {
       await dbDeleteTransaction(id);
     } catch (e: any) {
-      console.error('[DB Delete Transaction]:', e?.message || e);
-      throw e;
+      // 404 = data sudah tidak ada di server (instance serverless di-recycle /
+      // data hanya hidup di cache lokal). Anggap sudah terhapus agar cache
+      // lokal ikut dibersihkan dan UI tidak berhenti "tidak berubah apa-apa".
+      if (e?.status === 404) {
+        // fall through — bersihkan cache lokal
+      } else {
+        console.error('[DB Delete Transaction]:', e?.message || e);
+        throw e;
+      }
     }
     // Update local cache
     const list = getLocal<Transaction[]>(STORAGE_KEYS.TRANSACTIONS, INITIAL_TRANSACTIONS).filter((t) => t.id !== id);
