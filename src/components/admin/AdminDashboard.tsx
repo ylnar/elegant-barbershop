@@ -22,6 +22,7 @@ import { BookingsTab } from './tabs/BookingsTab';
 import { ServicesTab } from './tabs/ServicesTab';
 import { BarbersTab } from './tabs/BarbersTab';
 import { ReportsTab } from './tabs/ReportsTab';
+import { CustomersTab } from './tabs/CustomersTab';
 import { AdminGuideTab } from './tabs/AdminGuideTab';
 import { ServiceFormModal } from './modals/ServiceFormModal';
 import { BarberFormModal } from './modals/BarberFormModal';
@@ -63,7 +64,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onLogout,
 }) => {
   const [activeTab, setActiveTab] = useState<
-    'transactions' | 'bookings' | 'switch' | 'services' | 'barbers' | 'reports' | 'guide'
+    'transactions' | 'bookings' | 'switch' | 'services' | 'barbers' | 'customers' | 'reports' | 'guide'
   >('transactions');
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -96,6 +97,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   // Completion Payment Modal State
   const [completionBooking, setCompletionBooking] = useState<Booking | null>(null);
   const [completionModalOpen, setCompletionModalOpen] = useState<boolean>(false);
+
+  // Data Pelanggan (untuk tab Data Pelanggan)
+  const [customers, setCustomers] = useState<any[]>([]);
+
+  const loadCustomers = async () => {
+    try {
+      const data = await api.fetchCustomers();
+      setCustomers(data || []);
+    } catch {
+      setCustomers([]);
+    }
+  };
+
+  useEffect(() => {
+    void loadCustomers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Kunci scroll halaman luar (body) saat Dashboard Admin terbuka
   useEffect(() => {
@@ -205,8 +223,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     try {
       await api.deleteBarber(barberToDelete.id);
       await onRefreshData();
+      const stillExists = barbers.some((b) => b.id === barberToDelete.id);
       setBarberToDelete(null);
-      toast.success(`Barber "${barberToDelete.name}" berhasil dihapus.`);
+      if (stillExists) {
+        toast.info(
+          `Barber "${barberToDelete.name}" pernah melayani / terjadwal di reservasi sehingga TIDAK bisa dihapus — otomatis di-nonaktifkan agar riwayat tetap aman.`,
+        );
+      } else {
+        toast.success(`Barber "${barberToDelete.name}" berhasil dihapus.`);
+      }
     } catch {
       toast.error('Gagal menghapus barber. Coba lagi.');
     } finally {
@@ -381,6 +406,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     | 'switch'
     | 'services'
     | 'barbers'
+    | 'customers'
     | 'reports'
     | 'guide';
 
@@ -426,6 +452,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           label: 'Data Barber',
           icon: Users,
           badge: `${barbers.length}`,
+          badgeColor: 'bg-stone-800 text-stone-300',
+        },
+        {
+          id: 'customers',
+          label: 'Data Pelanggan',
+          icon: Users,
+          badge: `${customers.length}`,
           badgeColor: 'bg-stone-800 text-stone-300',
         },
       ],
@@ -657,6 +690,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 barbers={barbers}
                 onOpenBarberModal={handleOpenBarberModal}
                 onDeleteBarber={handlePromptDeleteBarber}
+              />
+            )}
+
+            {activeTab === 'customers' && (
+              <CustomersTab
+                onRefreshData={loadCustomers}
               />
             )}
 
