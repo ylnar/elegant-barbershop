@@ -1,5 +1,5 @@
 import React from 'react';
-import { AlertTriangle, Trash2, LogOut, X, AlertCircle, Download } from 'lucide-react';
+import { AlertTriangle, Trash2, LogOut, X, AlertCircle, Download, RotateCcw } from 'lucide-react';
 
 interface ConfirmModalProps {
   isOpen: boolean;
@@ -8,7 +8,7 @@ interface ConfirmModalProps {
   confirmText?: string;
   cancelText?: string;
   variant?: 'danger' | 'warning' | 'primary';
-  icon?: 'trash' | 'logout' | 'alert' | 'download';
+  icon?: 'trash' | 'logout' | 'alert' | 'download' | 'restore';
   isLoading?: boolean;
   onConfirm: () => void | Promise<void>;
   onClose: () => void;
@@ -36,6 +36,8 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
         return <AlertTriangle className="w-6 h-6 text-amber-400" />;
       case 'download':
         return <Download className="w-6 h-6 text-emerald-400" />;
+      case 'restore':
+        return <RotateCcw className="w-6 h-6 text-emerald-400" />;
       case 'trash':
       default:
         return <Trash2 className="w-6 h-6 text-rose-400" />;

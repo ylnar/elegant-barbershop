@@ -11,6 +11,50 @@ import { STORAGE_KEYS } from './storage';
 // Re-export tipe Customer agar bisa diimpor dari satu pintu (services/api).
 export type { Customer } from './customersService';
 
+// ── Trash / Soft-Delete ───────────────────────────────────────────────────
+
+export interface TrashItem {
+  type: string;
+  id: string;
+  name: string;
+  deletedAt: string;
+  detail: Record<string, unknown>;
+}
+
+export const trashService = {
+  async getDeletedItems(type?: string): Promise<TrashItem[]> {
+    const qs = type ? `?type=${encodeURIComponent(type)}` : '';
+    const res = await fetch(`/api/trash${qs}`);
+    if (!res.ok) return [];
+    return res.json();
+  },
+
+  async restoreItem(type: string, id: string): Promise<boolean> {
+    const res = await fetch(`/api/trash/${encodeURIComponent(type)}/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+    });
+    return res.ok;
+  },
+
+  async permanentDelete(type: string, id: string): Promise<boolean> {
+    const res = await fetch(`/api/trash/${encodeURIComponent(type)}/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+    return res.ok;
+  },
+
+  async permanentDeleteAll(type: string): Promise<number> {
+    const res = await fetch('/api/trash', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type }),
+    });
+    if (!res.ok) return 0;
+    const data = await res.json();
+    return data.deleted || 0;
+  },
+};
+
 export {
   STORAGE_KEYS,
   settingsService,
@@ -62,6 +106,12 @@ export const api = {
 
   // AI Barber Consultant
   getAIConsultation: aiService.getAIConsultation,
+
+  // Trash (Soft-Delete)
+  getDeletedItems: trashService.getDeletedItems,
+  restoreItem: trashService.restoreItem,
+  permanentDelete: trashService.permanentDelete,
+  permanentDeleteAll: trashService.permanentDeleteAll,
 
   // Blueprints & Database
   getDatabaseStatus: blueprintService.getDatabaseStatus,

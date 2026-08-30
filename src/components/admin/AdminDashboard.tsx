@@ -12,6 +12,7 @@ import {
   Clock,
   CreditCard,
   CalendarCheck,
+  Trash2,
 } from 'lucide-react';
 import { Booking, Service, Barber, SystemSettings, Transaction, PaymentMethod } from '../../types';
 import { api } from '../../services/api';
@@ -23,6 +24,7 @@ import { ServicesTab } from './tabs/ServicesTab';
 import { BarbersTab } from './tabs/BarbersTab';
 import { ReportsTab } from './tabs/ReportsTab';
 import { CustomersTab } from './tabs/CustomersTab';
+import { TrashTab } from './tabs/TrashTab';
 import { AdminGuideTab } from './tabs/AdminGuideTab';
 import { ServiceFormModal } from './modals/ServiceFormModal';
 import { BarberFormModal } from './modals/BarberFormModal';
@@ -64,7 +66,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onLogout,
 }) => {
   const [activeTab, setActiveTab] = useState<
-    'transactions' | 'bookings' | 'switch' | 'services' | 'barbers' | 'customers' | 'reports' | 'guide'
+    'transactions' | 'bookings' | 'switch' | 'services' | 'barbers' | 'customers' | 'reports' | 'guide' | 'trash'
   >('transactions');
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -414,7 +416,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     | 'barbers'
     | 'customers'
     | 'reports'
-    | 'guide';
+    | 'guide'
+    | 'trash';
 
   const navGroups: { label: string; items: { id: TabId; label: string; icon: typeof CreditCard; badge?: string; badgeColor?: string }[] }[] = [
     {
@@ -481,6 +484,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           id: 'guide',
           label: 'Petunjuk & Panduan',
           icon: BookOpen,
+        },
+        {
+          id: 'trash',
+          label: 'Sampah / Tempat Sampah',
+          icon: Trash2,
+          badgeColor: 'bg-rose-500/20 text-rose-300',
         },
       ],
     },
@@ -714,6 +723,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             )}
 
             {activeTab === 'guide' && <AdminGuideTab />}
+
+            {activeTab === 'trash' && <TrashTab />}
           </div>
         </main>
       </div>

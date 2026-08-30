@@ -846,6 +846,7 @@ export const mongoRepo = {
         const name = String(updates.name || '').trim();
         if (name) set.name = name;
       }
+      if (updates.phone !== undefined) {
         const phone = normalizePhone(updates.phone);
         if (phone.length >= 8) {
           // Hindari tabrakan nomor: jangan timpa bila nomor baru sudah dipakai doc lain.
@@ -905,6 +906,116 @@ export const mongoRepo = {
       return rows.map((r) => normalizeStr(r.phone, '')).filter(Boolean);
     } catch {
       return [];
+    }
+  },
+
+  // ── Trash / Soft-Delete Management ─────────────────────────────────────────
+
+  /**
+   * Ambil semua data yang sudah di-soft-delete dari semua koleksi.
+   * Mengembalikan array objek dengan field `type` (nama koleksi) + data asli.
+   */
+  async fetchDeletedItems(type?: string): Promise<{ type: string; id: string; name: string; deletedAt: string; detail: Record<string, unknown> }[]> {
+    const results: { type: string; id: string; name: string; deletedAt: string; detail: Record<string, unknown> }[] = [];
+
+    const collections: { name: string; collection: string; getName: (row: Document) => string }[] = [
+      { name: 'services', collection: COLLECTIONS.SERVICES, getName: (r) => normalizeStr(r.name) },
+      { name: 'barbers', collection: COLLECTIONS.BARBERS, getName: (r) => normalizeStr(r.name) },
+      { name: 'bookings', collection: COLLECTIONS.BOOKINGS, getName: (r) => `${normalizeStr(r.bookingCode)} — ${normalizeStr(r.customerName)}` },
+      { name: 'transactions', collection: COLLECTIONS.TRANSACTIONS, getName: (r) => `${normalizeStr(r.invoiceNumber)} — ${normalizeStr(r.customerName)}` },
+      { name: 'customers', collection: COLLECTIONS.CUSTOMERS, getName: (r) => normalizeStr(r.name) },
+    ];
+
+    const targets = type ? collections.filter((c) => c.name === type) : collections;
+
+    for (const cfg of targets) {
+      try {
+        const col = await getMongoCollection(cfg.collection);
+        if (!col) continue;
+        const rows = await col.find({ isDeleted: true }).sort({ deletedAt: -1 }).limit(200).toArray();
+        for (const row of rows) {
+          const id = normalizeStr(row.id, String(row._id));
+          const detail: Record<string, unknown> = {};
+          for (const [k, v] of Object.entries(row)) {
+            if (k === '_id' || k === 'isDeleted') continue;
+            detail[k] = v;
+          }
+          results.push({
+            type: cfg.name,
+            id,
+            name: cfg.getName(row),
+            deletedAt: toIso(row.deletedAt, ''),
+            detail,
+          });
+        }
+      } catch {
+        // skip collection on error
+      }
+    }
+
+    return results;
+  },
+
+  /** Restore item yang sudah di-soft-delete berdasarkan type + id. */
+  async restoreItem(type: string, id: string): Promise<boolean> {
+    const colName =
+      type === 'services' ? COLLECTIONS.SERVICES
+      : type === 'barbers' ? COLLECTIONS.BARBERS
+      : type === 'bookings' ? COLLECTIONS.BOOKINGS
+      : type === 'transactions' ? COLLECTIONS.TRANSACTIONS
+      : type === 'customers' ? COLLECTIONS.CUSTOMERS
+      : null;
+    if (!colName) return false;
+    try {
+      const col = await getMongoCollection(colName);
+      if (!col) return false;
+      const result = await col.updateMany(
+        { id, isDeleted: true },
+        { $set: { isDeleted: false, deletedAt: null, updatedAt: new Date().toISOString() } },
+      );
+      return result.matchedCount > 0;
+    } catch {
+      return false;
+    }
+  },
+
+  /** Hapus permanen (hard delete) item berdasarkan type + id. */
+  async permanentDeleteItem(type: string, id: string): Promise<boolean> {
+    const colName =
+      type === 'services' ? COLLECTIONS.SERVICES
+      : type === 'barbers' ? COLLECTIONS.BARBERS
+      : type === 'bookings' ? COLLECTIONS.BOOKINGS
+      : type === 'transactions' ? COLLECTIONS.TRANSACTIONS
+      : type === 'customers' ? COLLECTIONS.CUSTOMERS
+      : null;
+    if (!colName) return false;
+    try {
+      const col = await getMongoCollection(colName);
+      if (!col) return false;
+      const result = await col.deleteMany({ id });
+      return result.deletedCount > 0;
+    } catch {
+      return false;
+    }
+  },
+
+  /** Hapus permanen semua item soft-deleted tertentu. */
+  async permanentDeleteAll(type: string): Promise<number> {
+    const colName =
+      type === 'services' ? COLLECTIONS.SERVICES
+      : type === 'barbers' ? COLLECTIONS.BARBERS
+      : type === 'bookings' ? COLLECTIONS.BOOKINGS
+      : type === 'transactions' ? COLLECTIONS.TRANSACTIONS
+      : type === 'customers' ? COLLECTIONS.CUSTOMERS
+      : null;
+    if (!colName) return 0;
+    try {
+      const col = await getMongoCollection(colName);
+      if (!col) return 0;
+      const result = await col.deleteMany({ isDeleted: true });
+      return result.deletedCount;
+    } catch {
+      return 0;
     }
   },
 

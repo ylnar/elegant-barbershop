@@ -54,3 +54,22 @@ export async function POST(req: Request) {
   try {
     if (action === 'upsert') {
       const name = sanitizeString(body.name || 'Pelanggan');
+      const email = body.email ? sanitizeString(body.email) : undefined;
+      const result = await mongoRepo.upsertCustomer(name, phone, { overwriteName: true });
+      if (result) {
+        return json({ customer: result.customer, isNew: result.isNew });
+      }
+      return apiError('Gagal menyimpan data pelanggan.', 500);
+    }
+
+    // Default: lookup
+    const existing = await mongoRepo.lookupCustomerByPhone(phone);
+    if (existing) {
+      return json({ found: true, customer: existing });
+    }
+    return json({ found: false });
+  } catch (err) {
+    console.warn('[Customers Route] Error:', err);
+    return apiError('Terjadi kesalahan saat memproses permintaan.', 500);
+  }
+}
