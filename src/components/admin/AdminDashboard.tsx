@@ -323,7 +323,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     if (!completionBooking) return;
 
     // 1. Update booking status to completed
-    await api.updateBooking(completionBooking.id, { status: 'completed' });
+    try {
+      await api.updateBooking(completionBooking.id, { status: 'completed' });
+    } catch (err) {
+      // Transaksi tetap boleh dibuat walau update status gagal (mis. 404 karena
+      // booking sudah tidak ada di server). Jangan biarkan error tak tertangani.
+      console.warn('[Update Booking Status] Gagal saat penyelesaian:', err);
+    }
 
     // 2. Create transaction with selected payment details
     const changeAmount = Math.max(0, amountPaid - completionBooking.totalAmount);

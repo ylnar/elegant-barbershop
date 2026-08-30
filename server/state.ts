@@ -224,7 +224,24 @@ class ServerStore {
     if (persist) {
       void mongoRepo.deleteBooking(id);
     }
+    // Cascade: buang transaksi yang terhubung ke booking yang dihapus
+    // agar histori transaksi tidak menyimpan data menggantung (merujuk ke
+    // reservasi yang sudah tidak ada). Soft-delete di MongoDB maupun filter
+    // di memori ikut dilakukan di sini supaya semua jalur delete booking
+    // bersih, bukan hanya lewat route.
+    this.deleteTransactionsByBooking(id, false);
+    void mongoRepo.deleteTransactionsByBooking(id);
     return this.bookings.length < prevLen;
+  }
+
+  /** Hapus semua transaksi yang merujuk ke sebuah booking (id). */
+  deleteTransactionsByBooking(identifier: string, persist = true): number {
+    const prevLen = this.transactions.length;
+    this.transactions = this.transactions.filter((t) => t.bookingId !== identifier);
+    if (persist) {
+      void mongoRepo.deleteTransactionsByBooking(identifier);
+    }
+    return prevLen - this.transactions.length;
   }
 
   // --- Transactions ---

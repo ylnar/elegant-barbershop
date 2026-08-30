@@ -618,6 +618,30 @@ export const mongoRepo = {
     }
   },
 
+  /**
+   * Hapus (soft-delete) semua transaksi yang terhubung ke sebuah booking.
+   * `identifier` adalah id booking. Transaksi otomatis dari reservasi
+   * menyimpan `bookingId` = booking.id. Dipanggil saat booking dihapus agar
+   * histori transaksi tidak menyimpan data menggantung yang merujuk ke
+   * reservasi yang sudah tidak ada.
+   */
+  async deleteTransactionsByBooking(identifier: string): Promise<number> {
+    try {
+      const col = await getMongoCollection(COLLECTIONS.TRANSACTIONS);
+      if (!col) return 0;
+      const result = await col.updateMany(
+        {
+          isDeleted: { $ne: true },
+          bookingId: identifier,
+        },
+        { $set: { isDeleted: true, deletedAt: new Date().toISOString(), updatedAt: new Date().toISOString() } },
+      );
+      return result.modifiedCount;
+    } catch {
+      return 0;
+    }
+  },
+
   // ── Customers ──────────────────────────────────────────────────────────────
 
   async fetchCustomers(): Promise<Document[]> {

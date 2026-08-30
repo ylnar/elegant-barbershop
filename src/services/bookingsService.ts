@@ -120,20 +120,56 @@ export const bookingsService = {
   },
 
   async updateBooking(id: string, updates: Partial<Booking>): Promise<Booking> {
-    try {
-      const updated = await dbUpdateBooking(id, updates);
-      const bookings = getLocal<Booking[]>(STORAGE_KEYS.BOOKINGS, INITIAL_BOOKINGS);
-      const idx = bookings.findIndex((b) => b.id === id || b.bookingCode === id);
-      if (idx !== -1) {
-        bookings[idx] = { ...bookings[idx], ...updated };
+      try {
+        const updated = await dbUpdateBooking(id, updates);
+        const bookings = getLocal<Booking[]>(STORAGE_KEYS.BOOKINGS, INITIAL_BOOKINGS);
+        const idx = bookings.findIndex((b) => b.id === id || b.bookingCode === id);
+        if (idx !== -1) {
+          bookings[idx] = { ...bookings[idx], ...updated };
+        }
+        setLocal(STORAGE_KEYS.BOOKINGS, bookings);
+        return updated;
+      } catch (e: any) {
+        // 404 = data booking sudah tidak ada di server (mis. seed in-memory yang
+        // tidak pernah tersimpan ke MongoDB, atau sudah dihapus dari perangkat lain).
+        // Jangan lempar error tak tertangani: bersihkan cache lokal yang basi dan
+        // kembalikan hasil optimis agar UI terus berjalan; refresh berikutnya akan
+        // memuat ulang dari server.
+        if (e?.status === 404) {
+          const bookings = getLocal<Booking[]>(STORAGE_KEYS.BOOKINGS, INITIAL_BOOKINGS);
+          setLocal(
+            STORAGE_KEYS.BOOKINGS,
+            bookings.filter((b) => b.id !== id && b.bookingCode !== id),
+          );
+          const stale = bookings.find((b) => b.id === id || b.bookingCode === id);
+          console.warn(
+            '[DB Update Booking] 404 — booking tidak ada di server, cache lokal dibersihkan.',
+          );
+          return {
+            ...(stale ?? {
+              id,
+              bookingCode: '',
+              customerName: '',
+              customerPhone: '',
+              serviceId: '',
+              serviceName: '',
+              servicePrice: 0,
+              barberId: '',
+              barberName: '',
+              date: '',
+              timeSlot: '',
+              totalAmount: 0,
+              status: 'pending' as Booking['status'],
+              createdAt: '',
+              updatedAt: '',
+            }),
+            ...updates,
+          };
+        }
+        console.warn('[DB Update Booking Error]:', e?.message || e);
+        throw e;
       }
-      setLocal(STORAGE_KEYS.BOOKINGS, bookings);
-      return updated;
-    } catch (e: any) {
-      console.warn('[DB Update Booking Error]:', e?.message || e);
-      throw e;
-    }
-  },
+    },
 
   async deleteBooking(id: string): Promise<boolean> {
     try {
