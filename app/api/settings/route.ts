@@ -1,12 +1,22 @@
 import { serverStore } from '@server/state';
 import { json, apiError, readBody, sanitizeString } from '@lib/api';
 import { requireAdminSession } from '@server/adminAuth';
+import { mongoRepo } from '@server/mongoRepo';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 // GET /api/settings
 export async function GET() {
+  try {
+    const remote = await mongoRepo.fetchSettings();
+    if (remote) {
+      serverStore.updateSettings(remote, false);
+      return json(remote);
+    }
+  } catch (err) {
+    console.warn('[Settings Route] MongoDB fetch error:', err);
+  }
   return json(serverStore.getSettings());
 }
 

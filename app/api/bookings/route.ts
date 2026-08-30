@@ -272,7 +272,6 @@ export async function POST(req: Request) {
       success: true,
       booking: created,
       message: `Reservasi berhasil tercatat! Kode: ${bookingCode}`,
-      persistedToDatabase,
     },
     201,
   );

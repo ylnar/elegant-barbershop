@@ -150,7 +150,6 @@ export async function POST(req: Request) {
       success: true,
       transaction: created,
       message: `Transaksi kasir ${newTransaction.invoiceNumber} berhasil disimpan.`,
-      persistedToDatabase,
     },
     201,
   );
