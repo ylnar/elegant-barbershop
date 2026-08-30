@@ -8,7 +8,7 @@ export const barbersService = {
     // 1. Ambil dari server (MongoDB via API routes)
     try {
       const liveBarbers = await fetchBarbersLive();
-      if (liveBarbers !== null && liveBarbers.length > 0) {
+      if (liveBarbers !== null) {
         setLocal(STORAGE_KEYS.BARBERS, liveBarbers);
         return liveBarbers;
       }

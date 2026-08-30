@@ -9,7 +9,7 @@ export const transactionsService = {
     // 1. Ambil dari server (MongoDB via API routes)
     try {
       const liveTransactions = await fetchTransactionsLive(filters);
-      if (liveTransactions !== null && liveTransactions.length > 0) {
+      if (liveTransactions !== null) {
         setLocal(STORAGE_KEYS.TRANSACTIONS, liveTransactions);
         return liveTransactions;
       }

@@ -8,7 +8,7 @@ export const servicesService = {
     // 1. Ambil dari server (MongoDB via API routes)
     try {
       const liveServices = await fetchServicesLive();
-      if (liveServices !== null && liveServices.length > 0) {
+      if (liveServices !== null) {
         setLocal(STORAGE_KEYS.SERVICES, liveServices);
         return liveServices;
       }
