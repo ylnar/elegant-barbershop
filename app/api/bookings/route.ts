@@ -43,42 +43,18 @@ export async function GET(req: Request) {
       status: status || undefined,
       search: search || undefined,
     });
-    if (remote.length > 0) {
-      // Hanya sinkronisasi store bila query tanpa filter, agar hasil filter
-      // (mis. date tertentu) tidak menimpa seluruh data in-memory.
-      if (!hasFilters) serverStore.setBookings(remote);
-      return json(remote);
-    }
+    // Sinkronisasi in-memory bila query tanpa filter (ambil semua data)
+    if (!hasFilters) serverStore.setBookings(remote);
+    return json(remote);
   } catch (err) {
     console.warn('[MongoDB Bookings Error]:', err);
   }
 
-  let filtered = serverStore.getBookings();
-
-  if (code) {
-    filtered = filtered.filter((b) => b.bookingCode.toLowerCase() === String(code).toLowerCase());
-  }
-  if (date) {
-    filtered = filtered.filter((b) => b.date === date);
-  }
-  if (status && status !== 'all') {
-    filtered =
-      status === 'active'
-        ? filtered.filter((b) => ACTIVE_BOOKING_STATUSES.includes(b.status))
-        : filtered.filter((b) => b.status === status);
-  }
-  if (search) {
-    const q = String(search).toLowerCase();
-    filtered = filtered.filter(
-      (b) =>
-        b.customerName.toLowerCase().includes(q) ||
-        b.customerPhone.includes(q) ||
-        b.bookingCode.toLowerCase().includes(q) ||
-        b.serviceName.toLowerCase().includes(q),
-    );
-  }
-
-  return json(filtered);
+  // MongoDB tidak tersedia: return [] (bukan data in-memory stale).
+  // In-memory TIDAK bisa dipercaya karena tidak sinkron dengan soft-delete
+  // di MongoDB — mengembalikannya akan membuat booking yang sudah dihapus
+  // muncul kembali.
+  return json([]);
 }
 
 // POST /api/bookings - Rate limited to prevent spam
@@ -216,13 +192,7 @@ export async function POST(req: Request) {
   // Walk-in & pencatatan manual admin dilewati karena bersifat instan/internal.
   if (!isManualWalkIn && !isAdminEntry) {
     try {
-      let slotBookings = await mongoRepo.queryBookings({ date, status: 'active' });
-      // Fallback in-memory bila Mongo tidak tersedia / tidak mengembalikan data
-      if (slotBookings.length === 0) {
-        slotBookings = serverStore.getBookings().filter(
-          (b) => b.date === date && ACTIVE_BOOKING_STATUSES.includes(b.status),
-        );
-      }
+      const slotBookings = await mongoRepo.queryBookings({ date, status: 'active' });
       const activeSlot = slotBookings.filter((b) => b.timeSlot === timeSlot);
       const maxSlot = settings.maxSimultaneousBookingsPerSlot || 4;
       if (activeSlot.length >= maxSlot) {
@@ -250,22 +220,37 @@ export async function POST(req: Request) {
   }
 
   const service = serverStore.getServiceById(serviceId);
-  const serviceName = service ? service.name : body.serviceName || 'Layanan Pangkas';
-  const servicePrice = service ? service.price : Number(body.servicePrice) || 45000;
+  const serviceName = service ? service.name : body.serviceName || '';
+  const servicePrice = service ? service.price : Number(body.servicePrice) || 0;
 
-  let barberName = 'Barber Siap Pertama';
+  let barberName = '';
   if (barberId && barberId !== 'any') {
     const b = serverStore.getBarberById(barberId);
     if (b) barberName = b.name;
     else if (body.barberName) barberName = body.barberName;
+  } else if (body.barberName) {
+    barberName = body.barberName;
   }
 
-  const randomDigits = Math.floor(1000 + Math.random() * 9000);
-  const bookingCode = `ELG-${randomDigits}`;
+  // Booking code: 6 digit acak dengan collision check
+  let bookingCode = '';
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const digits = Math.floor(100000 + Math.random() * 900000);
+    const candidate = `ELG-${digits}`;
+    const existing = await mongoRepo.queryBookings({ code: candidate });
+    if (existing.length === 0) {
+      bookingCode = candidate;
+      break;
+    }
+  }
+  if (!bookingCode) {
+    // Fallback: gunakan timestamp sebagai jaminan unik
+    bookingCode = `ELG-${Date.now().toString().slice(-6)}`;
+  }
   const nowIso = new Date().toISOString();
 
   const newBooking: Booking = {
-    id: `bk-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+    id: `bk-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     bookingCode,
     idempotencyKey: idempotencyKey || undefined,
     customerName,
@@ -296,7 +281,7 @@ export async function POST(req: Request) {
     }
     // Upsert customer to prevent duplicates (non-blocking)
     if (persistedToDatabase) {
-      await mongoRepo.upsertCustomer(customerName, customerPhone, customerEmail).catch(() => {});
+      await mongoRepo.upsertCustomer(customerName, customerPhone).catch(() => {});
     }
   } catch (err) {
     console.error('[MongoDB Insert Booking] Gagal:', err);

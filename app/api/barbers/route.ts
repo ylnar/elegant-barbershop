@@ -11,7 +11,7 @@ export const runtime = 'nodejs';
 export async function GET() {
   try {
     const remote = await mongoRepo.fetchBarbers();
-    if (remote) {
+    if (remote !== null) {
       serverStore.setBarbers(remote);
       return json(remote);
     }
@@ -19,7 +19,8 @@ export async function GET() {
     console.warn('[Barbers Route] MongoDB fetch error:', err);
   }
 
-  return json(serverStore.getBarbers());
+  // MongoDB tidak tersedia: return [] (bukan data in-memory stale)
+  return json([]);
 }
 
 // POST /api/barbers
@@ -52,7 +53,7 @@ export async function POST(req: Request) {
   }
 
   const newBarber: Barber = {
-    id: body.id || `barber-${Date.now()}`,
+    id: body.id || `barber-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     idempotencyKey: idempotencyKey || undefined,
     name,
     phone: body.phone ? sanitizeString(body.phone) : undefined,

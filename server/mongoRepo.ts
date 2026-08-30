@@ -95,7 +95,7 @@ function mapServiceRow(row: WithId<Document>): Service {
   return {
     id: normalizeStr(row.id, String(row._id)),
     idempotencyKey: row.idempotencyKey ? normalizeStr(row.idempotencyKey) : undefined,
-    name: normalizeStr(row.name, 'Layanan Pangkas'),
+    name: normalizeStr(row.name),
     category: (row.category || row.categorySlug || 'haircut') as Service['category'],
     price: normalizeNum(row.price),
     durationMinutes: normalizeNum(row.durationMinutes ?? row.duration_minutes, 35),
@@ -109,7 +109,7 @@ function mapBarberRow(row: WithId<Document>): Barber {
   return {
     id: normalizeStr(row.id, String(row._id)),
     idempotencyKey: row.idempotencyKey ? normalizeStr(row.idempotencyKey) : undefined,
-    name: normalizeStr(row.name, 'Barber'),
+    name: normalizeStr(row.name),
     phone: row.phone ? normalizeStr(row.phone) : undefined,
     isActive: normalizeBool(row.isActive ?? row.is_active, true),
     workingDays: Array.isArray(row.workingDays)
@@ -126,16 +126,16 @@ function mapBookingRow(row: WithId<Document>): Booking {
     id: normalizeStr(row.id, String(row._id)),
     bookingCode: normalizeStr(row.bookingCode ?? row.booking_code),
     idempotencyKey: row.idempotencyKey ? normalizeStr(row.idempotencyKey) : undefined,
-    customerName: normalizeStr(row.customerName ?? row.customer_name, 'Pelanggan'),
-    customerPhone: normalizeStr(row.customerPhone ?? row.customer_phone, ''),
+    customerName: normalizeStr(row.customerName ?? row.customer_name),
+    customerPhone: normalizeStr(row.customerPhone ?? row.customer_phone),
     customerEmail: row.customerEmail || row.customer_email ? normalizeStr(row.customerEmail ?? row.customer_email) : undefined,
-    serviceId: normalizeStr(row.serviceId ?? row.service_id, ''),
-    serviceName: normalizeStr(row.serviceName ?? row.service_name, 'Layanan Pangkas'),
+    serviceId: normalizeStr(row.serviceId ?? row.service_id),
+    serviceName: normalizeStr(row.serviceName ?? row.service_name),
     servicePrice: normalizeNum(row.servicePrice ?? row.service_price),
-    barberId: normalizeStr(row.barberId ?? row.barber_id, 'any'),
-    barberName: normalizeStr(row.barberName ?? row.barber_name, 'Barber Siap Pertama'),
+    barberId: normalizeStr(row.barberId ?? row.barber_id),
+    barberName: normalizeStr(row.barberName ?? row.barber_name),
     date: normalizeStr(row.date).split('T')[0],
-    timeSlot: normalizeStr(row.timeSlot ?? row.time_slot, '10:00'),
+    timeSlot: normalizeStr(row.timeSlot ?? row.time_slot),
     totalAmount: normalizeNum(row.totalAmount ?? row.total_amount),
     status: normalizeStr(row.status, 'pending') as BookingStatus,
     isWalkIn: normalizeBool(row.isWalkIn ?? row.is_walk_in, false),
@@ -151,12 +151,12 @@ function mapTransactionRow(row: WithId<Document>): Transaction {
     invoiceNumber: normalizeStr(row.invoiceNumber ?? row.invoice_number),
     idempotencyKey: row.idempotencyKey ? normalizeStr(row.idempotencyKey) : undefined,
     bookingId: row.bookingId ? normalizeStr(row.bookingId) : undefined,
-    customerName: normalizeStr(row.customerName ?? row.customer_name, 'Pelanggan'),
+    customerName: normalizeStr(row.customerName ?? row.customer_name),
     customerPhone: row.customerPhone || row.customer_phone
       ? normalizeStr(row.customerPhone ?? row.customer_phone)
       : undefined,
-    barberId: normalizeStr(row.barberId ?? row.barber_id, 'barber-1'),
-    barberName: normalizeStr(row.barberName ?? row.barber_name, 'Staff Barber'),
+    barberId: normalizeStr(row.barberId ?? row.barber_id),
+    barberName: normalizeStr(row.barberName ?? row.barber_name),
     items: Array.isArray(row.items) ? row.items : [],
     subtotal: normalizeNum(row.subtotal),
     discount: normalizeNum(row.discount),
@@ -234,7 +234,9 @@ export const mongoRepo = {
       COLLECTIONS.SERVICES,
       async (col) => {
         const rows = await col.find(isDeletedFilter()).sort({ createdAt: -1 }).toArray();
-        return rows.length === 0 ? null : rows.map(mapServiceRow);
+        // Kembalikan [] saat koleksi kosong — JANGAN null, agar state.ts
+        // tahu bahwa MongoDB aktif dan koleksi memang kosong (bukan gagal fetch).
+        return rows.map(mapServiceRow);
       },
       null,
     );
@@ -244,6 +246,13 @@ export const mongoRepo = {
     return runWithMongo(
       COLLECTIONS.SERVICES,
       async (col) => {
+        // Cek duplikat berdasarkan nama (case-insensitive) — mencegah
+        // layanan ganda dari request berulang atau race condition.
+        const existing = await col.findOne({
+          name: new RegExp(`^${escapeRegExp(service.name)}$`, 'i'),
+          ...isDeletedFilter(),
+        });
+        if (existing) return true; // Sudah ada, anggap sukses (idempoten)
         const res = await col.insertOne({
           ...service,
           isDeleted: false,
@@ -323,7 +332,7 @@ export const mongoRepo = {
       COLLECTIONS.BARBERS,
       async (col) => {
         const rows = await col.find(isDeletedFilter()).sort({ createdAt: -1 }).toArray();
-        return rows.length === 0 ? null : rows.map(mapBarberRow);
+        return rows.map(mapBarberRow);
       },
       null,
     );
@@ -409,7 +418,7 @@ export const mongoRepo = {
       COLLECTIONS.BOOKINGS,
       async (col) => {
         const rows = await col.find(isDeletedFilter()).sort({ createdAt: -1, _id: -1 }).toArray();
-        return rows.length === 0 ? null : rows.map(mapBookingRow);
+        return rows.map(mapBookingRow);
       },
       null,
     );
@@ -468,6 +477,10 @@ export const mongoRepo = {
         { $or: [{ id: identifier }, { bookingCode: identifier }] },
         { $set: { isDeleted: true, deletedAt: new Date().toISOString(), updatedAt: new Date().toISOString() } },
       );
+      if (result.matchedCount > 0) {
+        // Cascade: hapus transaksi terkait agar tidak ada data menggantung
+        await this.deleteTransactionsByBooking(identifier);
+      }
       return result.matchedCount > 0;
     } catch {
       return false;
@@ -497,19 +510,23 @@ export const mongoRepo = {
         }
         if (filters.search) {
           const q = escapeRegExp(filters.search);
-          // Gabung kondisi soft-delete ($or dari isDeletedFilter) dengan syarat
-          // pencarian memakai $and — jangan menimpa $or agar data yang sudah
-          // dihapus tidak muncul lagi di hasil pencarian.
-          query.$and = [
-            {
-              $or: [
-                { customerName: new RegExp(q, 'i') },
-                { customerPhone: new RegExp(q, 'i') },
-                { bookingCode: new RegExp(q, 'i') },
-                { serviceName: new RegExp(q, 'i') },
-              ],
-            },
-          ];
+          // Gabung kondisi pencarian dengan filter soft-delete secara aman.
+          // Karena isDeletedFilter() pakai $or, kita harus menempatkan
+          // kondisi pencarian di level $and yang sama agar tidak konflik.
+          const searchCondition = {
+            $or: [
+              { customerName: new RegExp(q, 'i') },
+              { customerPhone: new RegExp(q, 'i') },
+              { bookingCode: new RegExp(q, 'i') },
+              { serviceName: new RegExp(q, 'i') },
+            ],
+          };
+          if (query.$and) {
+            // $and sudah ada (dari isDeletedFilter) — tambahkan search
+            (query.$and as Document[]).push(searchCondition);
+          } else {
+            query.$and = [searchCondition];
+          }
         }
 
         const rows = await col
@@ -588,7 +605,7 @@ export const mongoRepo = {
       COLLECTIONS.TRANSACTIONS,
       async (col) => {
         const rows = await col.find(isDeletedFilter()).sort({ createdAt: -1, _id: -1 }).toArray();
-        return rows.length === 0 ? null : rows.map(mapTransactionRow);
+        return rows.map(mapTransactionRow);
       },
       null,
     );
@@ -614,19 +631,19 @@ export const mongoRepo = {
         }
         if (filters.search) {
           const q = escapeRegExp(filters.search);
-          // Sama dengan queryBookings: jangan timpa $or soft-delete dari
-          // isDeletedFilter — gabung lewat $and agar data terhapus tidak muncul
-          // lagi saat pencarian.
-          query.$and = [
-            {
-              $or: [
-                { invoiceNumber: new RegExp(q, 'i') },
-                { customerName: new RegExp(q, 'i') },
-                { customerPhone: new RegExp(q, 'i') },
-                { barberName: new RegExp(q, 'i') },
-              ],
-            },
-          ];
+          const searchCondition = {
+            $or: [
+              { invoiceNumber: new RegExp(q, 'i') },
+              { customerName: new RegExp(q, 'i') },
+              { customerPhone: new RegExp(q, 'i') },
+              { barberName: new RegExp(q, 'i') },
+            ],
+          };
+          if (query.$and) {
+            (query.$and as Document[]).push(searchCondition);
+          } else {
+            query.$and = [searchCondition];
+          }
         }
 
         const rows = await col
@@ -653,6 +670,20 @@ export const mongoRepo = {
         return res.acknowledged;
       },
       false,
+    );
+  },
+
+  /** Cari transaksi berdasarkan bookingId (termasuk yang sudah soft-delete). */
+  async findTransactionByBookingId(bookingId: string): Promise<Transaction | null> {
+    return runWithMongo(
+      COLLECTIONS.TRANSACTIONS,
+      async (col) => {
+        // Cari TANPA isDeletedFilter — termasuk transaksi yang sudah dihapus
+        // agar tidak terjadi duplikat auto-transaction.
+        const row = await col.findOne({ bookingId });
+        return row ? mapTransactionRow(row) : null;
+      },
+      null,
     );
   },
 
@@ -741,7 +772,6 @@ export const mongoRepo = {
   async upsertCustomer(
     name: string,
     phone: string,
-    email?: string,
     opts?: { overwriteName?: boolean },
   ): Promise<{ customer: Document; isNew: boolean } | null> {
     try {
@@ -768,7 +798,6 @@ export const mongoRepo = {
           {
             $set: {
               name: finalName,
-              email: (email && email.trim()) || existing.email || null,
               lastBookingDate: today,
               updatedAt: new Date().toISOString(),
             },
@@ -785,10 +814,9 @@ export const mongoRepo = {
       }
 
       const doc = {
-        id: `cust-${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+        id: `cust-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         name: (name && name.trim()) || 'Pelanggan',
         phone: normalized,
-        email: (email && email.trim()) || null,
         totalBookings: 1,
         lastBookingDate: today,
         isActive: true,
@@ -806,7 +834,7 @@ export const mongoRepo = {
   /** Update pelanggan eksplisit (edit oleh admin) berdasarkan `id` dokumen. */
   async updateCustomerById(
     id: string,
-    updates: { name?: string; phone?: string; email?: string; isActive?: boolean },
+    updates: { name?: string; phone?: string; isActive?: boolean },
   ): Promise<Document | null> {
     try {
       const col = await getMongoCollection<Document>(COLLECTIONS.CUSTOMERS);
@@ -818,10 +846,6 @@ export const mongoRepo = {
         const name = String(updates.name || '').trim();
         if (name) set.name = name;
       }
-      if (updates.email !== undefined) {
-        set.email = String(updates.email || '').trim() || null;
-      }
-      if (updates.phone !== undefined) {
         const phone = normalizePhone(updates.phone);
         if (phone.length >= 8) {
           // Hindari tabrakan nomor: jangan timpa bila nomor baru sudah dipakai doc lain.
@@ -952,9 +976,8 @@ function mapCustomerRow(row: Document | null): Document {
   if (!row) return {};
   return {
     id: normalizeStr(row.id, String(row._id || '')),
-    name: normalizeStr(row.name, 'Pelanggan'),
-    phone: normalizeStr(row.phone, ''),
-    email: row.email ? normalizeStr(row.email) : undefined,
+    name: normalizeStr(row.name),
+    phone: normalizeStr(row.phone),
     totalBookings: normalizeNum(row.totalBookings),
     lastBookingDate: row.lastBookingDate ? normalizeStr(row.lastBookingDate) : undefined,
     isActive: normalizeBool(row.isActive, true),

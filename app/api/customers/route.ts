@@ -31,50 +31,13 @@ export async function GET(req: Request) {
     console.warn('[Customers Route] MongoDB gagal:', err);
   }
 
-  // Fallback: bangun daftar pelanggan dari data booking lokal
-  const bookings = serverStore.getBookings();
-  const deletedPhones = new Set(await mongoRepo.fetchDeletedCustomerPhones());
-  const map = new Map<string, { name: string; phone: string; email?: string; last: string }>();
-  for (const b of bookings) {
-    const phone = (b.customerPhone || '').replace(/[^0-9]/g, '');
-    if (!phone) continue;
-    // Lewati nomor yang sudah dihapus admin (soft-delete) agar tidak muncul lagi.
-    const merchantPhone = phone.startsWith('0') ? `62${phone.slice(1)}` : phone;
-    if (deletedPhones.has(merchantPhone)) continue;
-    const existing = map.get(phone);
-    if (!existing) {
-      map.set(phone, {
-        name: b.customerName,
-        phone,
-        email: b.customerEmail,
-        last: b.createdAt,
-      });
-    } else {
-      existing.name = b.customerName;
-      existing.email = b.customerEmail || existing.email;
-      if (b.createdAt > existing.last) existing.last = b.createdAt;
-    }
-  }
-  const customers = Array.from(map.values()).map((c) => ({
-    id: `cust-${c.phone}`,
-    name: c.name,
-    phone: c.phone,
-    email: c.email,
-    totalBookings: bookings.filter((b) => b.customerPhone.replace(/[^0-9]/g, '') === c.phone).length,
-    lastBookingDate: c.last,
-    isActive: true,
-    createdAt: c.last,
-    updatedAt: c.last,
-  }));
-  const filtered = search
-    ? customers.filter((c) => c.name.toLowerCase().includes(search) || c.phone.includes(search))
-    : customers;
-  return json(filtered);
+  // MongoDB tidak tersedia: return [] (bukan data in-memory stale)
+  return json([]);
 }
 
 /**
  * POST /api/customers
- * body: { action: 'lookup' | 'upsert', phone, name?, email? }
+ * body: { action: 'lookup' | 'upsert', phone, name? }
  */
 export async function POST(req: Request) {
   if (!(await requireAdminSession(req))) {
@@ -91,15 +54,3 @@ export async function POST(req: Request) {
   try {
     if (action === 'upsert') {
       const name = sanitizeString(body.name || 'Pelanggan');
-      const email = body.email ? sanitizeString(body.email) : undefined;
-      const result = await mongoRepo.upsertCustomer(name, phone, email);
-      return json(result);
-    }
-
-    const customer = await mongoRepo.lookupCustomerByPhone(phone);
-    return json({ found: Boolean(customer), customer });
-  } catch (err) {
-    console.warn('[Customers Route] MongoDB gagal:', err);
-    return json({ found: false, error: 'Gagal memproses pelanggan.' }, 503);
-  }
-}

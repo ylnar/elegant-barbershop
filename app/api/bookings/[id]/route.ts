@@ -39,19 +39,31 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   // sehingga laporan keuangan selalu mencatat penjualan meskipun mengubah status
   // lewat dropdown (tanpa lewat modal pembayaran).
   if (updated.status === 'completed') {
-    const alreadyHasTransaction = serverStore
-      .getTransactions()
-      .some((t) => t.bookingId === updated.id || t.bookingId === updated.bookingCode);
+    // Cek di MongoDB termasuk soft-deleted — JANGAN buat duplikat bila
+    // transaksi sudah pernah dibuat (bahkan jika sudah dihapus).
+    let alreadyHasTransaction = false;
+    try {
+      const existing = await mongoRepo.findTransactionByBookingId(updated.id);
+      alreadyHasTransaction = existing !== null;
+    } catch (err) {
+      console.warn('[Booking] Gagal cek transaksi existing:', err);
+    }
+    // Fallback: cek in-memory juga
+    if (!alreadyHasTransaction) {
+      alreadyHasTransaction = serverStore
+        .getTransactions()
+        .some((t) => t.bookingId === updated.id || t.bookingId === updated.bookingCode);
+    }
     if (!alreadyHasTransaction) {
       const nowIso = new Date().toISOString();
       const newTransaction: Transaction = {
-        id: `trx-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-        invoiceNumber: `TRX-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`,
+        id: `trx-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        invoiceNumber: `TRX-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}`,
         bookingId: updated.id,
         customerName: updated.customerName,
         customerPhone: updated.customerPhone || undefined,
-        barberId: updated.barberId || 'barber-1',
-        barberName: updated.barberName || 'Staff Barber',
+        barberId: updated.barberId || '',
+        barberName: updated.barberName || '',
         items: [
           {
             serviceId: updated.serviceId,
@@ -87,8 +99,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
           mongoRepo
             .upsertCustomer(
               normalizeNickname(updated.customerName),
-              normalizePhoneDigits(updated.customerPhone),
-              updated.customerEmail,
+              normalizePhoneDigits(updated.customerPhone)
             )
             .catch(() => {});
         }

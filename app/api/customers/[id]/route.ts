@@ -23,12 +23,12 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   const body = await readBody(req);
 
   const name = body.name !== undefined ? normalizeNickname(sanitizeString(body.name)) : undefined;
-  const email = body.email !== undefined ? sanitizeString(body.email) : undefined;
+  // email removed - only name + phone
   const phone = body.phone !== undefined ? normalizePhoneDigits(sanitizeString(body.phone)) : undefined;
   const isActive = typeof body.isActive === 'boolean' ? body.isActive : undefined;
 
   // 1) Update langsung dokumen yang ada di MongoDB
-  let updated = await mongoRepo.updateCustomerById(id, { name, email, phone, isActive });
+  let updated = await mongoRepo.updateCustomerById(id, { name, phone, isActive });
   if (updated) {
     return json({ success: true, customer: updated });
   }
@@ -41,7 +41,6 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     const result = await mongoRepo.upsertCustomer(
       name && name.length > 0 ? name : 'Pelanggan',
       phoneForUpsert,
-      email,
       { overwriteName: true },
     );
     if (result) {

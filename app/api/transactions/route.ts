@@ -14,42 +14,29 @@ export async function GET(req: Request) {
   const paymentMethod = sp.get('paymentMethod');
   const search = sp.get('search');
 
+  // Coba ambil dari MongoDB. queryTransactions mengembalikan [] bila
+  // koleksi kosong (data memang tidak ada), atau [] bila MongoDB down.
+  // Untuk membedakan: queryTransactions yang return [] dari koleksi kosong
+  // dan fallback in-memory TIDAK boleh terjadi — kita HANYA pakai MongoDB.
+  // Bila MongoDB mati, return [] langsung (bukan stale data dari in-memory).
+  let mongoAvailable = false;
   try {
     const remote = await mongoRepo.queryTransactions({
       date: date || undefined,
       paymentMethod: paymentMethod && paymentMethod !== 'all' ? paymentMethod : undefined,
       search: search || undefined,
     });
-    if (remote.length > 0) {
-      return json(remote);
-    }
+    mongoAvailable = true;
+    return json(remote);
   } catch (err) {
     console.warn('[MongoDB Transactions Error]:', err);
   }
 
-  let filtered = serverStore.getTransactions();
-
-  if (date) {
-    // Compare using local WIB date range converted to UTC for timezone safety
-    const startUTC = new Date(`${date}T00:00:00+07:00`).toISOString();
-    const endUTC = new Date(`${date}T23:59:59+07:00`).toISOString();
-    filtered = filtered.filter((t) => t.createdAt >= startUTC && t.createdAt <= endUTC);
-  }
-  if (paymentMethod && paymentMethod !== 'all') {
-    filtered = filtered.filter((t) => t.paymentMethod === paymentMethod);
-  }
-  if (search) {
-    const q = String(search).toLowerCase();
-    filtered = filtered.filter(
-      (t) =>
-        t.invoiceNumber.toLowerCase().includes(q) ||
-        t.customerName.toLowerCase().includes(q) ||
-        (t.customerPhone && t.customerPhone.includes(q)) ||
-        t.barberName.toLowerCase().includes(q),
-    );
-  }
-
-  return json(filtered);
+  // MongoDB tidak tersedia: return [] (bukan data in-memory stale).
+  // Data in-memory TIDAK bisa dipercaya karena tidak sinkron dengan
+  // soft-delete di MongoDB — mengembalikannya akan membuat transaksi
+  // yang sudah dihapus muncul kembali.
+  return json([]);
 }
 
 // POST /api/transactions
@@ -101,15 +88,30 @@ export async function POST(req: Request) {
     return json({ error: 'Minimal pilih 1 layanan transaksi.' }, 400);
   }
 
-  let barberName = 'Staff Barber';
+  let barberName = '';
   if (barberId) {
     const b = serverStore.getBarberById(barberId);
     if (b) barberName = b.name;
     else if (body.barberName) barberName = body.barberName;
+  } else if (body.barberName) {
+    barberName = body.barberName;
   }
 
-  const randomSuffix = Math.floor(100 + Math.random() * 900);
-  const invoiceNumber = `TRX-${new Date().getFullYear()}-${randomSuffix}`;
+  // Invoice number: collision-safe dengan timestamp + random suffix
+  const year = new Date().getFullYear();
+  let invoiceNumber = '';
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const suffix = Math.floor(1000 + Math.random() * 9000);
+    const candidate = `TRX-${year}-${suffix}`;
+    const existing = await mongoRepo.queryTransactions({ search: candidate });
+    if (existing.length === 0 || !existing.some(t => t.invoiceNumber === candidate)) {
+      invoiceNumber = candidate;
+      break;
+    }
+  }
+  if (!invoiceNumber) {
+    invoiceNumber = `TRX-${year}-${Date.now().toString().slice(-4)}`;
+  }
 
   // Nama panggilan: hanya satu kata tanpa spasi.
   let cleanCustomerName = normalizeNickname(customerName) || 'Tamu Umum (Walk-in)';
@@ -131,13 +133,13 @@ export async function POST(req: Request) {
   const cleanNotes = notes ? sanitizeString(notes) : undefined;
 
   const newTransaction: Transaction = {
-    id: `trx-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+    id: `trx-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     invoiceNumber,
     idempotencyKey: idempotencyKey || undefined,
     bookingId: bookingId ? sanitizeString(bookingId) : undefined,
     customerName: cleanCustomerName,
     customerPhone: cleanCustomerPhone,
-    barberId: barberId || 'barber-1',
+    barberId: barberId || '',
     barberName,
     items,
     subtotal: Math.max(0, Number(subtotal) || Number(totalAmount)),
@@ -169,7 +171,7 @@ export async function POST(req: Request) {
     }
     // Update customer data (non-blocking)
     if (persistedToDatabase) {
-      await mongoRepo.upsertCustomer(cleanCustomerName, cleanCustomerPhone, undefined).catch(() => {});
+      await mongoRepo.upsertCustomer(cleanCustomerName, cleanCustomerPhone).catch(() => {});
     }
   } catch (err) {
     console.error('[MongoDB Insert Transaction Error]:', err);

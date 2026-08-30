@@ -55,10 +55,13 @@ class ServerStore {
         ]);
 
       if (remoteSettings) this.settings = remoteSettings;
-      if (remoteServices && remoteServices.length > 0) this.services = remoteServices;
-      if (remoteBarbers && remoteBarbers.length > 0) this.barbers = remoteBarbers;
-      if (remoteBookings && remoteBookings.length > 0) this.bookings = remoteBookings;
-      if (remoteTransactions && remoteTransactions.length > 0) this.transactions = remoteTransactions;
+      // Null = MongoDB tidak tersedia / gagal fetch. Array kosong = MongoDB aktif
+      // tapi koleksi memang kosong (data belum di-seed / sudah dihapus).
+      // Bedakan: null → pertahankan cache lama; [] → update jadi kosong.
+      if (remoteServices !== null) this.services = remoteServices;
+      if (remoteBarbers !== null) this.barbers = remoteBarbers;
+      if (remoteBookings !== null) this.bookings = remoteBookings;
+      if (remoteTransactions !== null) this.transactions = remoteTransactions;
 
       this.isInitialized = true;
       console.log('⚡ ServerStore synced with MongoDB');
@@ -231,16 +234,13 @@ class ServerStore {
   deleteBooking(id: string, persist = true): boolean {
     const prevLen = this.bookings.length;
     this.bookings = this.bookings.filter((b) => b.id !== id && b.bookingCode !== id);
+    // Cascade: buang transaksi yang terhubung ke booking yang dihapus.
+    // Hapus dari memori SEBELUM persist agar konsisten.
+    this.deleteTransactionsByBooking(id, false);
     if (persist) {
+      // mongoRepo.deleteBooking sudah melakukan cascade deleteTransactionsByBooking
       void mongoRepo.deleteBooking(id);
     }
-    // Cascade: buang transaksi yang terhubung ke booking yang dihapus
-    // agar histori transaksi tidak menyimpan data menggantung (merujuk ke
-    // reservasi yang sudah tidak ada). Soft-delete di MongoDB maupun filter
-    // di memori ikut dilakukan di sini supaya semua jalur delete booking
-    // bersih, bukan hanya lewat route.
-    this.deleteTransactionsByBooking(id, false);
-    void mongoRepo.deleteTransactionsByBooking(id);
     return this.bookings.length < prevLen;
   }
 

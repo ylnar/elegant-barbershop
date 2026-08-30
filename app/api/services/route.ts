@@ -11,7 +11,7 @@ export const runtime = 'nodejs';
 export async function GET() {
   try {
     const remote = await mongoRepo.fetchServices();
-    if (remote) {
+    if (remote !== null) {
       serverStore.setServices(remote);
       return json(remote);
     }
@@ -19,7 +19,8 @@ export async function GET() {
     console.warn('[Services Route] MongoDB fetch error:', err);
   }
 
-  return json(serverStore.getServices());
+  // MongoDB tidak tersedia: return [] (bukan data in-memory stale)
+  return json([]);
 }
 
 // POST /api/services
@@ -57,7 +58,7 @@ export async function POST(req: Request) {
   }
   const price = parsedPrice;
   const newService: Service = {
-    id: body.id || `srv-${Date.now()}`,
+    id: body.id || `srv-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     idempotencyKey: idempotencyKey || undefined,
     name,
     category: body.category || 'haircut',
