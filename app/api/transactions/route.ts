@@ -16,31 +16,44 @@ export async function GET(req: Request) {
   const search = sp.get('search');
 
   // Cek ketersediaan MongoDB SEBELUM query.
-  // Bila MongoDB down, kembalikan 503 agar client bisa jatuh ke localStorage cache
-  // (bukan return [] yang akan meng-overwrite cache lokal dengan data kosong).
-  if (!isMongoAvailable()) {
-    return apiError(
-      'Database sedang tidak tersedia. Menampilkan data dari cache lokal.',
-      503,
-      { cached: true },
-    );
+  // Bila MongoDB tersedia, tarik data live dari database (dan refresh cache memori).
+  if (isMongoAvailable()) {
+    try {
+      const remote = await mongoRepo.queryTransactions({
+        date: date || undefined,
+        paymentMethod: paymentMethod && paymentMethod !== 'all' ? paymentMethod : undefined,
+        search: search || undefined,
+      });
+      // Update cache in-memory supaya konsisten dengan database.
+      if (!date && !paymentMethod && !search) {
+        serverStore.setTransactions(
+          await mongoRepo.queryTransactions({}),
+        );
+      }
+      return json(remote);
+    } catch (err) {
+      console.warn('[MongoDB Transactions Error]:', err);
+    }
   }
 
-  try {
-    const remote = await mongoRepo.queryTransactions({
-      date: date || undefined,
-      paymentMethod: paymentMethod && paymentMethod !== 'all' ? paymentMethod : undefined,
-      search: search || undefined,
-    });
-    return json(remote);
-  } catch (err) {
-    console.warn('[MongoDB Transactions Error]:', err);
-    return apiError(
-      'Gagal mengambil data transaksi dari database. Menampilkan data dari cache lokal.',
-      503,
-      { cached: true },
+  // Fallback: MongoDB tidak tersedia / gagal. Kembalikan data dari store in-memory
+  // (terisi seed + transaksi yang pernah dibuat/di-sync di instance ini) — BUKAN
+  // list kosong / 503. Ini penting: aplikasi HP menarik dari endpoint ini dan tidak
+  // punya fallback lokal seperti web (localStorage), sehingga bila server hanya
+  // membalas 503, layar Riwayat Transaksi di HP tampak kosong padahal data ada.
+  let cached = serverStore.getTransactions();
+  if (date) cached = cached.filter((t) => t.createdAt?.slice(0, 10) === date);
+  if (paymentMethod && paymentMethod !== 'all') cached = cached.filter((t) => t.paymentMethod === paymentMethod);
+  if (search) {
+    const q = search.toLowerCase();
+    cached = cached.filter(
+      (t) =>
+        t.invoiceNumber?.toLowerCase().includes(q) ||
+        t.customerName?.toLowerCase().includes(q) ||
+        (t.customerPhone && t.customerPhone.includes(q)),
     );
   }
+  return json(cached);
 }
 
 // POST /api/transactions
